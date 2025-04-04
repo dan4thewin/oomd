@@ -158,7 +158,7 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
         continue;
       }
     }
-    if (!runnable_rulesets_.contains(cgroup.absolutePath())) {
+    if (!runnable_rulesets_.count(cgroup.absolutePath())) {
       OLOG << "Adding runnable ruleset for cgroup: " << cgroup.absolutePath();
       registerRunnableRulesetForCgroupPath(context, cgroup);
     }
@@ -169,7 +169,7 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
   for (auto&& cgroup_it = runnable_rulesets_.begin();
        cgroup_it != runnable_rulesets_.end();
        ++cgroup_it) {
-    if (visited.contains(cgroup_it->first)) {
+    if (visited.count(cgroup_it->first)) {
       continue;
     }
     OLOG << "Dropping runnable ruleset for cgroup: " << cgroup_it->first;
