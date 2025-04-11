@@ -29,6 +29,7 @@
 #include "oomd/include/Defines.h"
 #include "oomd/util/Fs.h"
 #include "oomd/util/Util.h"
+#include "oomd/ExitRegistry.h"
 namespace Oomd {
 
 Oomd::Oomd(
@@ -136,6 +137,7 @@ int Oomd::run(const sigset_t* mask) {
     } else if (rc != -1) {
       // Synchronously log to stderr so there's no buffering
       std::cerr << "Received signal " << rc << ". Exiting!";
+      getExitRegistry().callHooks();
       pthread_sigmask(SIG_UNBLOCK, mask, nullptr);
       pthread_kill(pthread_self(), rc);
       return -1;

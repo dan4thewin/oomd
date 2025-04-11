@@ -21,16 +21,17 @@
 #include <memory>
 #include <unordered_set>
 
+#include "oomd/ExitRegistry.h"
 #include "oomd/OomdContext.h"
 #include "oomd/PluginRegistry.h"
 #include "oomd/engine/BasePlugin.h"
+#include "oomd/engine/Ruleset.h"
 #include "oomd/plugins/BaseKillPlugin.h"
 #include "oomd/plugins/KillIOCost.h"
 #include "oomd/plugins/KillMemoryGrowth.h"
 #include "oomd/plugins/KillPgScan.h"
 #include "oomd/plugins/KillPressure.h"
 #include "oomd/plugins/KillSwapUsage.h"
-#include "oomd/plugins/Sleep.h"
 #include "oomd/util/Fixture.h"
 #include "oomd/util/TestHelper.h"
 
@@ -3342,7 +3343,9 @@ TEST_F(SleepTest, SleepTest) {
 
   EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
 
-  plugin->start_ -= std::chrono::seconds(100);
+  auto start = TestHelper::getSleepStart(plugin);
+  start -= std::chrono::seconds(100);
+  TestHelper::setSleepStart(plugin, start);
 
   EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
 }
@@ -3389,4 +3392,101 @@ TEST_F(AlwaysReclaimTest , ReclaimMulti) {
       ctx_, CgroupPath(tempdir_, "reclaim_2")));
   auto reclaim2 = ASSERT_SYS_OK(Fs::readMemReclaimAt(target2.fd()));
   EXPECT_EQ(reclaim2, 1048576);
+}
+
+class InterdictTest : public CorePluginsTest {};
+
+TEST_F(InterdictTest , InterdictMulti) {
+#define initmh(x, y, z)                 \
+  F::materialize(F::makeDir(            \
+      tempdir_,                         \
+      {F::makeDir(                      \
+          "interdict_1",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  x),                   \
+              }),                       \
+       F::makeDir(                      \
+          "interdict_2",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  y),                   \
+              }),                       \
+       F::makeDir(                      \
+          "interdict_3",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  z),                   \
+              }),                       \
+          }));
+
+  initmh("1", "2", "3");
+  const PluginConstructionContext compile_context(tempdir_);
+  std::vector<CgroupPath> keys = {
+      CgroupPath(compile_context.cgroupFs(), "interdict_1"),
+      CgroupPath(compile_context.cgroupFs(), "interdict_2"),
+      CgroupPath(compile_context.cgroupFs(), "interdict_3")
+  };
+
+  TestHelper::setCgroupData( ctx_, keys[0],
+      CgroupData{ .current_usage = 1024 * 1024 * 100});
+  TestHelper::setCgroupData( ctx_, keys[1],
+      CgroupData{ .current_usage = 1024 * 1024 * 100 * 2});
+  TestHelper::setCgroupData( ctx_, keys[2],
+      CgroupData{ .current_usage = 2048});
+
+  auto plugin = Interdict::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["cgroup"] = "interdict_*";
+  args["memhigh_pct"] = "75";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  Engine::Ruleset ruleset_ = Engine::Ruleset{"foo", {}, {}};
+
+#define getmh(x) ASSERT_SYS_OK( \
+    Fs::readMemhighAt(ctx_.addToCacheAndGet(x)->get().fd()))
+
+  // active: memory.high <- memory.current * 0.75
+  initmh("max", "81920", "0");
+  ctx_.bumpCurrentTick();
+  ctx_.setInvokingRuleset(&ruleset_);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 3);
+  EXPECT_EQ(getmh(keys[0]), 1024 * 1024 * 75);
+  EXPECT_EQ(getmh(keys[1]), 1024 * 1024 * 75 * 2);
+  EXPECT_EQ(getmh(keys[2]), 4096);  // minimum value
+
+  // inactive: memory.high <- saved memory.high
+  initmh("1", "2", "3");
+  ctx_.bumpCurrentTick();
+  ctx_.setInvokingRuleset(std::nullopt);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 3);
+  EXPECT_EQ(getmh(keys[0]), std::numeric_limits<int64_t>::max());
+  EXPECT_EQ(getmh(keys[1]), 81920);
+  EXPECT_EQ(getmh(keys[2]), 4096);
+
+  // active: memory.high <- memory.current * 0.75
+  initmh("1", "2", "3");
+  TestHelper::setCurrentTick(ctx_, 128);
+  ctx_.setInvokingRuleset(&ruleset_);
+  TestHelper::dropCgroup(ctx_, keys[2]);
+  F::rmrChecked(keys[2].absolutePath());
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 2);
+  EXPECT_EQ(getmh(keys[0]), 1024 * 1024 * 75);
+  EXPECT_EQ(getmh(keys[1]), 1024 * 1024 * 75 * 2);
+
+  // restore original values at exit
+  initmh("1", "2", "3");
+  getExitRegistry().callHooks();
+  EXPECT_EQ(getmh(keys[0]), std::numeric_limits<int64_t>::max());
+  EXPECT_EQ(getmh(keys[1]), 81920);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 0);
 }

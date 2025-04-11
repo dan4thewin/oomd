@@ -29,6 +29,7 @@ srcs = files('''
     src/oomd/Stats.cpp
     src/oomd/StatsClient.cpp
     src/oomd/PluginRegistry.cpp
+    src/oomd/ExitRegistry.cpp
     src/oomd/config/ConfigCompiler.cpp
     src/oomd/config/ConfigTypes.cpp
     src/oomd/config/JsonConfigParser.cpp
@@ -60,6 +61,7 @@ srcs = files('''
     src/oomd/plugins/KillPressure.cpp
     src/oomd/plugins/Sleep.cpp
     src/oomd/plugins/AlwaysReclaim.cpp
+    src/oomd/plugins/Interdict.cpp
     src/oomd/util/Fs.cpp
     src/oomd/util/Util.cpp
     src/oomd/util/PluginArgParser.cpp
