@@ -38,6 +38,7 @@ class Ruleset {
       bool disable_on_drop_in = false,
       bool detectorgroups_dropin_enabled = false,
       bool actiongroup_dropin_enabled = false,
+      bool always_continue = false,
       uint32_t silenced_logs = 0,
       int post_action_delay = DEFAULT_POST_ACTION_DELAY,
       int prekill_hook_timeout = DEFAULT_PREKILL_HOOK_TIMEOUT,
@@ -51,6 +52,7 @@ class Ruleset {
       bool disable_on_drop_in,
       bool detectorgroups_dropin_enabled,
       bool actiongroup_dropin_enabled,
+      bool always_continue,
       uint32_t silenced_logs,
       int post_action_delay,
       int prekill_hook_timeout,
@@ -110,6 +112,7 @@ class Ruleset {
   bool disable_on_drop_in_{false};
   bool detectorgroups_dropin_enabled_{false};
   bool actiongroup_dropin_enabled_{false};
+  bool always_continue_{false};
   uint32_t silenced_logs_{0};
   int32_t numTargeted_{0};
   std::string xattr_filter_;

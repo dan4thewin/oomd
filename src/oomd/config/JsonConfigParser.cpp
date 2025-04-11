@@ -111,6 +111,8 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
 
   ir_ruleset.dropin = parseDropIn(ruleset.get("drop-in", {}));
 
+  ir_ruleset.always_continue = ruleset.get("always-continue", false).asBool();
+
   ir_ruleset.silence_logs = ruleset.get("silence-logs", {}).asString();
 
   ir_ruleset.post_action_delay =

@@ -186,6 +186,7 @@ std::unique_ptr<Oomd::Engine::Ruleset> compileRuleset(
       ruleset.dropin.disable_on_drop_in,
       ruleset.dropin.detectorgroups_enabled,
       ruleset.dropin.actiongroup_enabled,
+      ruleset.always_continue,
       silenced_logs,
       post_action_delay,
       prekill_hook_timeout,
