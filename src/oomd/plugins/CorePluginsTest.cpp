@@ -30,6 +30,7 @@
 #include "oomd/plugins/KillPgScan.h"
 #include "oomd/plugins/KillPressure.h"
 #include "oomd/plugins/KillSwapUsage.h"
+#include "oomd/plugins/Sleep.h"
 #include "oomd/util/Fixture.h"
 #include "oomd/util/TestHelper.h"
 
@@ -3325,4 +3326,67 @@ TEST_F(StopTest, Stops) {
   ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
 
   EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+class SleepTest : public CorePluginsTest {};
+
+TEST_F(SleepTest, SleepTest) {
+  auto plugin = Sleep::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["duration"] = "100";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+
+  plugin->start_ -= std::chrono::seconds(100);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+class AlwaysReclaimTest : public CorePluginsTest {};
+
+TEST_F(AlwaysReclaimTest , ReclaimMulti) {
+  F::materialize(F::makeDir(
+      tempdir_,
+      {F::makeDir(
+          "reclaim_1",
+          {
+              F::makeFile(
+                  Fs::kMemReclaimFile,
+                  "0\n"),
+              }),
+       F::makeDir(
+          "reclaim_2",
+          {
+              F::makeFile(
+                  Fs::kMemReclaimFile,
+                  "0\n"),
+              }),
+          }));
+
+  auto plugin = createPlugin("always_reclaim");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["cgroup"] = "reclaim_1,reclaim_2";
+  args["reclaim_bytes"] = "1048576";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  auto target1 = ASSERT_EXISTS(CgroupContext::make(
+      ctx_, CgroupPath(tempdir_, "reclaim_1")));
+  auto reclaim1 = ASSERT_SYS_OK(Fs::readMemReclaimAt(target1.fd()));
+  EXPECT_EQ(reclaim1, 1048576);
+
+  auto target2 = ASSERT_EXISTS(CgroupContext::make(
+      ctx_, CgroupPath(tempdir_, "reclaim_2")));
+  auto reclaim2 = ASSERT_SYS_OK(Fs::readMemReclaimAt(target2.fd()));
+  EXPECT_EQ(reclaim2, 1048576);
 }

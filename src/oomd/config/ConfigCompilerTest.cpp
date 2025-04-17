@@ -397,6 +397,34 @@ TEST_F(CompilerTest, MultiGroupIncrementCount) {
   EXPECT_EQ(count, 6);
 }
 
+// redo the last test but with always_continue=true
+TEST_F(CompilerTest, AlwaysContinueIncrementCount) {
+  IR::Detector cont;
+  cont.name = "Continue";
+  IR::Detector stop;
+  stop.name = "Stop";
+  IR::Action increment;
+  increment.name = "IncrementCount";
+  IR::DetectorGroup dgroup1{"group1", {cont}};
+  IR::DetectorGroup dgroup2{"group2", {stop}};
+  IR::DetectorGroup dgroup3{"group3", {cont}};
+  IR::Ruleset ruleset1{"ruleset1", {dgroup1}, {increment}, {}, "", "", ""};
+  IR::Ruleset ruleset2{"ruleset2", {dgroup2}, {increment}, {}, "", "", ""};
+  ruleset2.always_continue = true;
+  IR::Ruleset ruleset3{"ruleset3", {dgroup3}, {increment}, {}, "", "", ""};
+  root.rulesets.emplace_back(std::move(ruleset1));
+  root.rulesets.emplace_back(std::move(ruleset2));
+  root.rulesets.emplace_back(std::move(ruleset3));
+
+  auto engine = compile();
+  ASSERT_TRUE(engine);
+  for (int i = 0; i < 3; ++i) {
+    engine->runOnce(context);
+  }
+
+  EXPECT_EQ(count, 9);
+}
+
 TEST_F(CompilerTest, AsyncAction) {
   IR::Action cont{IR::Plugin{.name = "Continue"}};
   IR::Action inc{IR::Plugin{.name = "IncrementCount"}};

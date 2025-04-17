@@ -69,12 +69,12 @@ struct Ruleset {
   std::vector<DetectorGroup> dgs;
   std::vector<Action> acts;
   DropIn dropin;
-  bool always_continue{false};
   std::string silence_logs;
   std::string post_action_delay;
   std::string prekill_hook_timeout;
   std::string xattr_filter;
   std::string cgroup;
+  bool always_continue{false};
 };
 
 struct Root {

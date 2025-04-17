@@ -20,10 +20,11 @@ class Sleep : public Engine::BasePlugin {
 
   ~Sleep() = default;
 
+  // public for unit test
+  std::chrono::steady_clock::time_point start_{};
+
   private:
     int duration_;
-
-    std::chrono::steady_clock::time_point start_{};
 };
 
 } // namespace Oomd
