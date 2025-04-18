@@ -23,13 +23,13 @@
 #include <thread>
 
 #include "oomd/CgroupContext.h"
+#include "oomd/ExitRegistry.h"
 #include "oomd/Log.h"
 #include "oomd/dropin/FsDropInService.h"
 #include "oomd/include/Assert.h"
 #include "oomd/include/Defines.h"
 #include "oomd/util/Fs.h"
 #include "oomd/util/Util.h"
-#include "oomd/ExitRegistry.h"
 namespace Oomd {
 
 Oomd::Oomd(

@@ -86,7 +86,7 @@ class TestHelper {
   }
 
   static void dropCgroup(OomdContext& ctx, const CgroupPath& cgroup) {
-    for (auto it = ctx.cgroups_.begin(); it != ctx.cgroups_.end(); )
+    for (auto it = ctx.cgroups_.begin(); it != ctx.cgroups_.end();)
       it = it->first != cgroup ? std::next(it) : ctx.cgroups_.erase(it);
   }
 
