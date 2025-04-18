@@ -1,8 +1,8 @@
 #include "oomd/plugins/Interdict.h"
 
+#include "oomd/ExitRegistry.h"
 #include "oomd/Log.h"
 #include "oomd/PluginRegistry.h"
-#include "oomd/ExitRegistry.h"
 
 namespace Oomd {
 
@@ -64,7 +64,7 @@ void Interdict::interdict_one(
   if (limit < 4096)
     limit = 4096;
 
-  if (! (activate ^ s.isActive)) {
+  if (!(activate ^ s.isActive)) {
     oss << " noop" << " isActive=" << s.isActive;
     return;
   }
@@ -91,7 +91,7 @@ Engine::PluginRet Interdict::run(OomdContext& ctx) {
 
   // purge data for removed/replaced cgroups periodically
   if (tick % 128 == 0) {
-    for (auto it = saved_.begin(); it != saved_.end(); ) {
+    for (auto it = saved_.begin(); it != saved_.end();) {
       it = it->second.tick == tick ? std::next(it) : saved_.erase(it);
     }
   }

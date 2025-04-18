@@ -29,8 +29,7 @@ Engine::PluginRet Sleep::run(OomdContext& ctx) {
   auto ret = Engine::PluginRet::STOP;
   const auto now = steady_clock::now();
   const auto diff =
-      std::chrono::duration_cast<std::chrono::seconds>(now - start_)
-          .count();
+      std::chrono::duration_cast<std::chrono::seconds>(now - start_).count();
 
   if (diff >= duration_) {
     start_ = steady_clock::now();
@@ -39,8 +38,7 @@ Engine::PluginRet Sleep::run(OomdContext& ctx) {
 
 #ifdef DEBUG
   std::ostringstream oss;
-  oss << "duration=" << duration_ << " diff=" << diff
-      << " ret=" << (int) ret;
+  oss << "duration=" << duration_ << " diff=" << diff << " ret=" << (int)ret;
   OLOG << oss.str();
 #endif
 

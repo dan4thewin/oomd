@@ -26,13 +26,12 @@ int AlwaysReclaim::init(
   return 0;
 }
 
-void AlwaysReclaim::reclaim_one(
-    const CgroupContext& target) {
+void AlwaysReclaim::reclaim_one(const CgroupContext& target) {
   auto ok = Fs::writeMemReclaimAt(target.fd(), reclaim_bytes_);
 
   std::ostringstream oss;
   oss << "cgroup=" << target.cgroup().relativePath()
-      << " reclaim_bytes=" << reclaim_bytes_ << " ok=" << (bool) ok;
+      << " reclaim_bytes=" << reclaim_bytes_ << " ok=" << (bool)ok;
   OLOG << oss.str();
 }
 

@@ -24,8 +24,8 @@ class Sleep : public Engine::BasePlugin {
   // Test only
   friend class TestHelper;
 
-    int duration_;
-    std::chrono::steady_clock::time_point start_{};
+  int duration_;
+  std::chrono::steady_clock::time_point start_{};
 };
 
 } // namespace Oomd
