@@ -33,6 +33,7 @@
 #include "oomd/plugins/KillPressure.h"
 #include "oomd/plugins/KillSwapUsage.h"
 #include "oomd/util/Fixture.h"
+#include "oomd/util/ScopeGuard.h"
 #include "oomd/util/TestHelper.h"
 
 using namespace Oomd;
@@ -3489,4 +3490,128 @@ TEST_F(InterdictTest , InterdictMulti) {
   EXPECT_EQ(getmh(keys[0]), std::numeric_limits<int64_t>::max());
   EXPECT_EQ(getmh(keys[1]), 81920);
   EXPECT_EQ(TestHelper::getSavedSize(plugin), 0);
+}
+
+class RunCommandTest : public CorePluginsTest {};
+
+TEST_F(RunCommandTest , RunCommandMissing) {
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = "/no/such/file";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["use_exit_value"] = "false";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+TEST_F(RunCommandTest , RunCommandExits) {
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = "/bin/true";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["command"] = "/bin/false";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+TEST_F(RunCommandTest , RunCommandCache) {
+  char wd[PATH_MAX];
+  ASSERT_NE(nullptr, getcwd(wd, sizeof(wd)));
+  OOMD_SCOPE_EXIT { ASSERT_EQ(0, chdir(wd)); };
+  ASSERT_EQ(0, chdir(tempdir_.c_str()));
+
+  // create script that touches a new file at each invocation
+  ASSERT_EQ(0, std::system("echo 'touch go.$$' > go && chmod u+x go"));
+
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = tempdir_ + "/go";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  // count invocations
+  EXPECT_EQ(2, WEXITSTATUS(
+        std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["cache_sec"] = "100";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  EXPECT_EQ(1, WEXITSTATUS(
+        std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
+}
+
+TEST_F(RunCommandTest , RunCommandTimeout) {
+  char wd[PATH_MAX];
+  ASSERT_NE(nullptr, getcwd(wd, sizeof(wd)));
+  OOMD_SCOPE_EXIT { ASSERT_EQ(0, chdir(wd)); };
+  ASSERT_EQ(0, chdir(tempdir_.c_str()));
+
+  // create script that touches a new file at each invocation
+  ASSERT_EQ(0, std::system("echo 'sleep $*' > go && chmod u+x go"));
+
+  auto plugin = RunCommand::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = tempdir_ + "/go";
+  args["use_exit_value"] = "true";
+  args["argument"] = "0.01\t0.01\t0.01";
+  args["timeout_msec"] = "50";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  // c_args_ contains the command, the args, and a trailing NULL
+  EXPECT_EQ(5, TestHelper::getArgsSize(plugin));
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  args["argument"] = "1";
+  plugin = RunCommand::create();
+  ASSERT_NE(plugin, nullptr);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(3, TestHelper::getArgsSize(plugin));
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
 }

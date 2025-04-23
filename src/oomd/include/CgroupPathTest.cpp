@@ -22,6 +22,7 @@
 
 #include "oomd/include/CgroupPath.h"
 #include "oomd/util/Fixture.h"
+#include "oomd/util/ScopeGuard.h"
 
 using namespace Oomd;
 
@@ -107,6 +108,9 @@ TEST(CgroupPathTest, HashTest) {
 TEST(CgroupPathTest, ResolveWildcardTest) {
   using F = Fixture;
   auto tempDir = F::mkdtempChecked();
+  OOMD_SCOPE_EXIT {
+    F::rmrChecked(tempDir);
+  };
   auto [name, fixture] = F::makeDir(
       "wildcard_root",
       {F::makeFile("a.txt", "content of a\n"),
