@@ -22,6 +22,7 @@
 #include "oomd/PluginRegistry.h"
 #include "oomd/engine/PrekillHook.h"
 #include "oomd/plugins/Interdict.h"
+#include "oomd/plugins/RunCommand.h"
 #include "oomd/plugins/Sleep.h"
 
 #define ASSERT_EXISTS(opt_expr) \
@@ -100,6 +101,10 @@ class TestHelper {
 
   static size_t getSavedSize(Interdict* i) {
     return i->saved_.size();
+  }
+
+  static size_t getArgsSize(RunCommand* r) {
+    return r->c_args_.size();
   }
 };
 

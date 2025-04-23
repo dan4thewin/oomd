@@ -36,11 +36,8 @@ Engine::PluginRet Sleep::run(OomdContext& ctx) {
     ret = Engine::PluginRet::CONTINUE;
   }
 
-#ifdef DEBUG
-  std::ostringstream oss;
-  oss << "duration=" << duration_ << " diff=" << diff << " ret=" << (int)ret;
-  OLOG << oss.str();
-#endif
+  const auto s = ret == Engine::PluginRet::CONTINUE ? "CONTINUE" : "STOP";
+  OLOG << "duration=" << duration_ << " diff=" << diff << " ret=" << s;
 
   return ret;
 }

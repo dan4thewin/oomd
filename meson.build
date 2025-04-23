@@ -62,6 +62,7 @@ srcs = files('''
     src/oomd/plugins/Sleep.cpp
     src/oomd/plugins/AlwaysReclaim.cpp
     src/oomd/plugins/Interdict.cpp
+    src/oomd/plugins/RunCommand.cpp
     src/oomd/util/Fs.cpp
     src/oomd/util/Util.cpp
     src/oomd/util/PluginArgParser.cpp

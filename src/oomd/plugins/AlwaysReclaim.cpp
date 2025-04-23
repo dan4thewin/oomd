@@ -17,7 +17,7 @@ int AlwaysReclaim::init(
         return PluginArgParser::parseCgroup(context, cgroupStr);
       },
       true);
-  argParser_.addArgument("reclaim_bytes", reclaim_bytes_);
+  argParser_.addArgument("reclaim_bytes", reclaim_bytes_, true);
 
   if (!argParser_.parse(args)) {
     return 1;

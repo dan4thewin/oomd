@@ -149,6 +149,12 @@ std::chrono::milliseconds PluginArgParser::parseValue(
 }
 
 template <>
+std::chrono::seconds PluginArgParser::parseValue(
+    const std::string& valueString) {
+  return std::chrono::seconds(std::stoll(valueString));
+}
+
+template <>
 ResourceType PluginArgParser::parseValue(const std::string& valueString) {
   if (valueString == "io") {
     return ResourceType::IO;
