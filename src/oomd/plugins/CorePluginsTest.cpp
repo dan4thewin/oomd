@@ -21,9 +21,11 @@
 #include <memory>
 #include <unordered_set>
 
+#include "oomd/ExitRegistry.h"
 #include "oomd/OomdContext.h"
 #include "oomd/PluginRegistry.h"
 #include "oomd/engine/BasePlugin.h"
+#include "oomd/engine/Ruleset.h"
 #include "oomd/plugins/BaseKillPlugin.h"
 #include "oomd/plugins/KillIOCost.h"
 #include "oomd/plugins/KillMemoryGrowth.h"
@@ -31,6 +33,7 @@
 #include "oomd/plugins/KillPressure.h"
 #include "oomd/plugins/KillSwapUsage.h"
 #include "oomd/util/Fixture.h"
+#include "oomd/util/ScopeGuard.h"
 #include "oomd/util/TestHelper.h"
 
 using namespace Oomd;
@@ -3323,6 +3326,292 @@ TEST_F(StopTest, Stops) {
   const PluginConstructionContext compile_context("/sys/fs/cgroup");
 
   ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+class SleepTest : public CorePluginsTest {};
+
+TEST_F(SleepTest, SleepTest) {
+  auto plugin = Sleep::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["duration"] = "100";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+
+  auto start = TestHelper::getSleepStart(plugin);
+  start -= std::chrono::seconds(100);
+  TestHelper::setSleepStart(plugin, start);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+class AlwaysReclaimTest : public CorePluginsTest {};
+
+TEST_F(AlwaysReclaimTest , ReclaimMulti) {
+  F::materialize(F::makeDir(
+      tempdir_,
+      {F::makeDir(
+          "reclaim_1",
+          {
+              F::makeFile(
+                  Fs::kMemReclaimFile,
+                  "0\n"),
+              }),
+       F::makeDir(
+          "reclaim_2",
+          {
+              F::makeFile(
+                  Fs::kMemReclaimFile,
+                  "0\n"),
+              }),
+          }));
+
+  auto plugin = createPlugin("always_reclaim");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["cgroup"] = "reclaim_1,reclaim_2";
+  args["reclaim_bytes"] = "1048576";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  auto target1 = ASSERT_EXISTS(CgroupContext::make(
+      ctx_, CgroupPath(tempdir_, "reclaim_1")));
+  auto reclaim1 = ASSERT_SYS_OK(Fs::readMemReclaimAt(target1.fd()));
+  EXPECT_EQ(reclaim1, 1048576);
+
+  auto target2 = ASSERT_EXISTS(CgroupContext::make(
+      ctx_, CgroupPath(tempdir_, "reclaim_2")));
+  auto reclaim2 = ASSERT_SYS_OK(Fs::readMemReclaimAt(target2.fd()));
+  EXPECT_EQ(reclaim2, 1048576);
+}
+
+class InterdictTest : public CorePluginsTest {};
+
+TEST_F(InterdictTest , InterdictMulti) {
+#define initmh(x, y, z)                 \
+  F::materialize(F::makeDir(            \
+      tempdir_,                         \
+      {F::makeDir(                      \
+          "interdict_1",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  x),                   \
+              }),                       \
+       F::makeDir(                      \
+          "interdict_2",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  y),                   \
+              }),                       \
+       F::makeDir(                      \
+          "interdict_3",                \
+          {                             \
+              F::makeFile(              \
+                  Fs::kMemHighFile,     \
+                  z),                   \
+              }),                       \
+          }));
+
+  initmh("1", "2", "3");
+  const PluginConstructionContext compile_context(tempdir_);
+  std::vector<CgroupPath> keys = {
+      CgroupPath(compile_context.cgroupFs(), "interdict_1"),
+      CgroupPath(compile_context.cgroupFs(), "interdict_2"),
+      CgroupPath(compile_context.cgroupFs(), "interdict_3")
+  };
+
+  TestHelper::setCgroupData( ctx_, keys[0],
+      CgroupData{ .current_usage = 1024 * 1024 * 100});
+  TestHelper::setCgroupData( ctx_, keys[1],
+      CgroupData{ .current_usage = 1024 * 1024 * 100 * 2});
+  TestHelper::setCgroupData( ctx_, keys[2],
+      CgroupData{ .current_usage = 2048});
+
+  auto plugin = Interdict::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["cgroup"] = "interdict_*";
+  args["memhigh_pct"] = "75";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  Engine::Ruleset ruleset_ = Engine::Ruleset{"foo", {}, {}};
+
+#define getmh(x) ASSERT_SYS_OK( \
+    Fs::readMemhighAt(ctx_.addToCacheAndGet(x)->get().fd()))
+
+  // active: memory.high <- memory.current * 0.75
+  initmh("max", "81920", "0");
+  ctx_.bumpCurrentTick();
+  ctx_.setInvokingRuleset(&ruleset_);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 3);
+  EXPECT_EQ(getmh(keys[0]), 1024 * 1024 * 75);
+  EXPECT_EQ(getmh(keys[1]), 1024 * 1024 * 75 * 2);
+  EXPECT_EQ(getmh(keys[2]), 4096);  // minimum value
+
+  // inactive: memory.high <- saved memory.high
+  initmh("1", "2", "3");
+  ctx_.bumpCurrentTick();
+  ctx_.setInvokingRuleset(std::nullopt);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 3);
+  EXPECT_EQ(getmh(keys[0]), std::numeric_limits<int64_t>::max());
+  EXPECT_EQ(getmh(keys[1]), 81920);
+  EXPECT_EQ(getmh(keys[2]), 4096);
+
+  // active: memory.high <- memory.current * 0.75
+  initmh("1", "2", "3");
+  TestHelper::setCurrentTick(ctx_, 128);
+  ctx_.setInvokingRuleset(&ruleset_);
+  TestHelper::dropCgroup(ctx_, keys[2]);
+  F::rmrChecked(keys[2].absolutePath());
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 2);
+  EXPECT_EQ(getmh(keys[0]), 1024 * 1024 * 75);
+  EXPECT_EQ(getmh(keys[1]), 1024 * 1024 * 75 * 2);
+
+  // restore original values at exit
+  initmh("1", "2", "3");
+  getExitRegistry().callHooks();
+  EXPECT_EQ(getmh(keys[0]), std::numeric_limits<int64_t>::max());
+  EXPECT_EQ(getmh(keys[1]), 81920);
+  EXPECT_EQ(TestHelper::getSavedSize(plugin), 0);
+}
+
+class RunCommandTest : public CorePluginsTest {};
+
+TEST_F(RunCommandTest , RunCommandMissing) {
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = "/no/such/file";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["use_exit_value"] = "false";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+TEST_F(RunCommandTest , RunCommandExits) {
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = "/bin/true";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["command"] = "/bin/false";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+TEST_F(RunCommandTest , RunCommandCache) {
+  char wd[PATH_MAX];
+  ASSERT_NE(nullptr, getcwd(wd, sizeof(wd)));
+  OOMD_SCOPE_EXIT { ASSERT_EQ(0, chdir(wd)); };
+  ASSERT_EQ(0, chdir(tempdir_.c_str()));
+
+  // create script that touches a new file at each invocation
+  ASSERT_EQ(0, std::system("echo 'touch go.$$' > go && chmod u+x go"));
+
+  auto plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = tempdir_ + "/go";
+  args["use_exit_value"] = "true";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  // count invocations
+  EXPECT_EQ(2, WEXITSTATUS(
+        std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
+
+  plugin = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  args["cache_sec"] = "100";
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  EXPECT_EQ(1, WEXITSTATUS(
+        std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
+}
+
+TEST_F(RunCommandTest , RunCommandTimeout) {
+  char wd[PATH_MAX];
+  ASSERT_NE(nullptr, getcwd(wd, sizeof(wd)));
+  OOMD_SCOPE_EXIT { ASSERT_EQ(0, chdir(wd)); };
+  ASSERT_EQ(0, chdir(tempdir_.c_str()));
+
+  // create script that touches a new file at each invocation
+  ASSERT_EQ(0, std::system("echo 'sleep $*' > go && chmod u+x go"));
+
+  auto plugin = RunCommand::create();
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["command"] = tempdir_ + "/go";
+  args["use_exit_value"] = "true";
+  args["argument"] = "0.01\t0.01\t0.01";
+  args["timeout_msec"] = "50";
+  const PluginConstructionContext compile_context("/sys/fs/cgroup");
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  // c_args_ contains the command, the args, and a trailing NULL
+  EXPECT_EQ(5, TestHelper::getArgsSize(plugin));
+
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  args["argument"] = "1";
+  plugin = RunCommand::create();
+  ASSERT_NE(plugin, nullptr);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(3, TestHelper::getArgsSize(plugin));
 
   EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
 }

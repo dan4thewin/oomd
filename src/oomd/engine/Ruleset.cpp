@@ -32,6 +32,7 @@ Ruleset::Ruleset(
     bool disable_on_drop_in,
     bool detectorgroups_dropin_enabled,
     bool actiongroup_dropin_enabled,
+    bool always_continue,
     uint32_t silence_logs,
     int post_action_delay,
     int prekill_hook_timeout,
@@ -46,6 +47,7 @@ Ruleset::Ruleset(
       disable_on_drop_in_(disable_on_drop_in),
       detectorgroups_dropin_enabled_(detectorgroups_dropin_enabled),
       actiongroup_dropin_enabled_(actiongroup_dropin_enabled),
+      always_continue_(always_continue),
       silenced_logs_(silence_logs),
       xattr_filter_(xattr_filter) {
   if (!cgroup.empty()) {
@@ -61,6 +63,7 @@ Ruleset::Ruleset(
     bool disable_on_drop_in,
     bool detectorgroups_dropin_enabled,
     bool actiongroup_dropin_enabled,
+    bool always_continue,
     uint32_t silence_logs,
     int post_action_delay,
     int prekill_hook_timeout,
@@ -73,6 +76,7 @@ Ruleset::Ruleset(
       disable_on_drop_in_(disable_on_drop_in),
       detectorgroups_dropin_enabled_(detectorgroups_dropin_enabled),
       actiongroup_dropin_enabled_(actiongroup_dropin_enabled),
+      always_continue_(always_continue),
       silenced_logs_(silence_logs) {
   cgroup_ = std::move(cgroup);
 }
@@ -158,7 +162,7 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
         continue;
       }
     }
-    if (!runnable_rulesets_.contains(cgroup.absolutePath())) {
+    if (!runnable_rulesets_.count(cgroup.absolutePath())) {
       OLOG << "Adding runnable ruleset for cgroup: " << cgroup.absolutePath();
       registerRunnableRulesetForCgroupPath(context, cgroup);
     }
@@ -169,7 +173,7 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
   for (auto&& cgroup_it = runnable_rulesets_.begin();
        cgroup_it != runnable_rulesets_.end();
        ++cgroup_it) {
-    if (visited.contains(cgroup_it->first)) {
+    if (visited.count(cgroup_it->first)) {
       continue;
     }
     OLOG << "Dropping runnable ruleset for cgroup: " << cgroup_it->first;
@@ -240,7 +244,7 @@ uint32_t Ruleset::runOnceImpl(OomdContext& context) {
     }
   }
 
-  if (!run_actions) {
+  if (!run_actions && !always_continue_) {
     return 0;
   }
 
@@ -347,6 +351,7 @@ void Ruleset::registerRunnableRulesetForCgroupPath(
       disable_on_drop_in_,
       detectorgroups_dropin_enabled_,
       actiongroup_dropin_enabled_,
+      always_continue_,
       silenced_logs_,
       post_action_delay_,
       prekill_hook_timeout_,

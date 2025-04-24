@@ -4,7 +4,7 @@ project('oomd', 'cpp',
   version : 'v0.5.0',
   meson_version : '>= 0.45',
   license : 'GPL2',
-  default_options : ['stdsplit=false', 'cpp_std=c++20'])
+  default_options : ['stdsplit=false', 'cpp_std=c++17'])
 
 cpp_args = ['-DMESON_BUILD']
 
@@ -29,6 +29,7 @@ srcs = files('''
     src/oomd/Stats.cpp
     src/oomd/StatsClient.cpp
     src/oomd/PluginRegistry.cpp
+    src/oomd/ExitRegistry.cpp
     src/oomd/config/ConfigCompiler.cpp
     src/oomd/config/ConfigTypes.cpp
     src/oomd/config/JsonConfigParser.cpp
@@ -58,6 +59,10 @@ srcs = files('''
     src/oomd/plugins/KillSwapUsage.cpp
     src/oomd/plugins/KillPgScan.cpp
     src/oomd/plugins/KillPressure.cpp
+    src/oomd/plugins/Sleep.cpp
+    src/oomd/plugins/AlwaysReclaim.cpp
+    src/oomd/plugins/Interdict.cpp
+    src/oomd/plugins/RunCommand.cpp
     src/oomd/util/Fs.cpp
     src/oomd/util/Util.cpp
     src/oomd/util/PluginArgParser.cpp

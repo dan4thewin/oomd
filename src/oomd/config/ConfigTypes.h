@@ -74,6 +74,7 @@ struct Ruleset {
   std::string prekill_hook_timeout;
   std::string xattr_filter;
   std::string cgroup;
+  bool always_continue{false};
 };
 
 struct Root {

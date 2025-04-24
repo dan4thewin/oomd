@@ -235,6 +235,7 @@ class Fs {
       const DirFd& dirfd,
       int64_t value,
       std::chrono::microseconds duration);
+  static SystemMaybe<int64_t> readMemReclaimAt(const DirFd& dirfd);
   static SystemMaybe<Unit> writeMemReclaimAt(
       const DirFd& dirfd,
       int64_t value,

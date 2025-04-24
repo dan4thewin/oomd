@@ -23,6 +23,7 @@
 #include <thread>
 
 #include "oomd/CgroupContext.h"
+#include "oomd/ExitRegistry.h"
 #include "oomd/Log.h"
 #include "oomd/dropin/FsDropInService.h"
 #include "oomd/include/Assert.h"
@@ -136,6 +137,7 @@ int Oomd::run(const sigset_t* mask) {
     } else if (rc != -1) {
       // Synchronously log to stderr so there's no buffering
       std::cerr << "Received signal " << rc << ". Exiting!";
+      getExitRegistry().callHooks();
       pthread_sigmask(SIG_UNBLOCK, mask, nullptr);
       pthread_kill(pthread_self(), rc);
       return -1;

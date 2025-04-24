@@ -764,6 +764,14 @@ SystemMaybe<Unit> Fs::writeMemhightmpAt(
   return noSystemError();
 }
 
+SystemMaybe<int64_t> Fs::readMemReclaimAt(const DirFd& dirfd) {
+  auto lines = readFileByLine(Fs::Fd::openat(dirfd, kMemReclaimFile));
+  if (!lines) {
+    return SYSTEM_ERROR(lines.error());
+  }
+  return static_cast<int64_t>(std::stoll((*lines)[0]));
+}
+
 SystemMaybe<Unit> Fs::writeMemReclaimAt(
     const DirFd& dirfd,
     int64_t value,

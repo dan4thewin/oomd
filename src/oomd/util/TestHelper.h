@@ -21,6 +21,9 @@
 #include "oomd/OomdContext.h"
 #include "oomd/PluginRegistry.h"
 #include "oomd/engine/PrekillHook.h"
+#include "oomd/plugins/Interdict.h"
+#include "oomd/plugins/RunCommand.h"
+#include "oomd/plugins/Sleep.h"
 
 #define ASSERT_EXISTS(opt_expr) \
   ({                            \
@@ -56,6 +59,10 @@ class TestHelper {
     return ctx.cgroups_;
   }
 
+  static void setCurrentTick(OomdContext& ctx, uint64_t x) {
+    ctx.current_tick_ = x;
+  }
+
   /*
    * Set the cgroup data of a CgroupContext in OomdContext.
    * This is a shortcut for setting up CgroupContext without creating control
@@ -77,6 +84,27 @@ class TestHelper {
         cached_ctx.archive_ = *archive;
       }
     }
+  }
+
+  static void dropCgroup(OomdContext& ctx, const CgroupPath& cgroup) {
+    for (auto it = ctx.cgroups_.begin(); it != ctx.cgroups_.end();)
+      it = it->first != cgroup ? std::next(it) : ctx.cgroups_.erase(it);
+  }
+
+  static std::chrono::steady_clock::time_point getSleepStart(Sleep* s) {
+    return s->start_;
+  }
+
+  static void setSleepStart(Sleep* s, std::chrono::steady_clock::time_point x) {
+    s->start_ = x;
+  }
+
+  static size_t getSavedSize(Interdict* i) {
+    return i->saved_.size();
+  }
+
+  static size_t getArgsSize(RunCommand* r) {
+    return r->c_args_.size();
   }
 };
 
