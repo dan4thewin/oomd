@@ -18,6 +18,12 @@ int Interdict::init(
         return PluginArgParser::parseCgroup(context, cgroupStr);
       },
       true);
+  argParser_.addArgumentCustom(
+      "ruleset_cgroup",
+      ruleset_cgroups_,
+      [context](const std::string& cgroupStr) {
+        return PluginArgParser::parseCgroup(context, cgroupStr);
+      });
   int64_t pct;
   argParser_.addArgument("memhigh_pct", pct, true);
 
@@ -83,7 +89,8 @@ Engine::PluginRet Interdict::run(OomdContext& ctx) {
   const auto activate = ctx.getInvokingRuleset().has_value();
   const auto tick = ctx.getCurrentTick();
 
-  for (const auto& cgroupCtx : ctx.addToCacheAndGet(cgroups_)) {
+  for (const auto& cgroupCtx :
+       ctx.addToCacheAndGet(cgroups_, ruleset_cgroups_)) {
     std::ostringstream oss;
     interdict_one(cgroupCtx, activate, tick, oss);
     OLOG << oss.str();

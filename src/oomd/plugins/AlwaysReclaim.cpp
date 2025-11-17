@@ -17,6 +17,12 @@ int AlwaysReclaim::init(
         return PluginArgParser::parseCgroup(context, cgroupStr);
       },
       true);
+  argParser_.addArgumentCustom(
+      "ruleset_cgroup",
+      ruleset_cgroups_,
+      [context](const std::string& cgroupStr) {
+        return PluginArgParser::parseCgroup(context, cgroupStr);
+      });
   argParser_.addArgument("reclaim_bytes", reclaim_bytes_, true);
 
   if (!argParser_.parse(args)) {
@@ -36,7 +42,8 @@ void AlwaysReclaim::reclaim_one(const CgroupContext& target) {
 }
 
 Engine::PluginRet AlwaysReclaim::run(OomdContext& ctx) {
-  for (const auto& cgroupCtx : ctx.addToCacheAndGet(cgroups_))
+  for (const auto& cgroupCtx :
+       ctx.addToCacheAndGet(cgroups_, ruleset_cgroups_))
     reclaim_one(cgroupCtx);
 
   return Engine::PluginRet::CONTINUE;

@@ -41,6 +41,7 @@ class Interdict : public Engine::BasePlugin {
   void reset();
 
   std::unordered_set<CgroupPath> cgroups_;
+  std::unordered_set<CgroupPath> ruleset_cgroups_;
   int64_t memhigh_factor_{0};
 };
 

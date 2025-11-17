@@ -22,6 +22,7 @@ class AlwaysReclaim : public Engine::BasePlugin {
   void reclaim_one(const Oomd::CgroupContext&);
 
   std::unordered_set<CgroupPath> cgroups_;
+  std::unordered_set<CgroupPath> ruleset_cgroups_;
   int64_t reclaim_bytes_{0};
 };
 

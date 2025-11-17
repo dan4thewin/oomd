@@ -28,6 +28,7 @@ CONTINUE, otherwise STOP.
 ### Arguments
 
     cgroup
+    ruleset_cgroup (optional)
     reclaim_bytes
 
 This plugin launches a reclamation of `reclaim_bytes` for the cgroup(s)
@@ -41,6 +42,7 @@ specified in `cgroup`.  Reclamation consists of a write to the
 ### Arguments
 
     cgroup
+    ruleset_cgroup (optional)
     memhigh_pct (from 1 to 99)
 
 ### Description
