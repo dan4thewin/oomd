@@ -239,9 +239,9 @@ TEST_F(BaseKillPluginXattrTest, XattrSetts) {
 class AlphabeticStandardKillPlugin : public BaseKillPluginMock {
  public:
   std::vector<OomdContext::ConstCgroupContextRef> rankForKilling(
-      OomdContext& /* unused */,
+      OomdContext& ctx,
       const std::vector<OomdContext::ConstCgroupContextRef>& cgroups) override {
-    return OomdContext::sortDescWithKillPrefs(
+    return OomdContext::sortDescWithKillValue(ctx,
         cgroups, [](const CgroupContext& cgroup_ctx) {
           return cgroup_ctx.cgroup().relativePathParts().back();
         });
@@ -443,9 +443,9 @@ TEST_F(StandardKillRecursionTest, RespectsMemoryOomGroup) {
 
 TEST_F(StandardKillRecursionTest, RespectsPreferAvoid) {
   // Technically not an aspect of BaseKillPlugin, and implemented
-  // separately in each subclass with OomdContext::sortDescWithKillPrefs in
+  // separately in each subclass with OomdContext::sortDescWithKillValue in
   // the subclass' rankForKilling.  It's expected that all subclasses will
-  // use OomdContext::sortDescWithKillPrefs in the same way, so we test an ex
+  // use OomdContext::sortDescWithKillValue in the same way, so we test an ex
   // of it here.
 
   F::materialize(
@@ -497,6 +497,16 @@ TEST_F(StandardKillRecursionTest, RespectsPreferAvoid) {
             CgroupPath(tempdir_, expected_victim).absolutePath());
       };
 
+  // establish base case - chose max letter at each level
+  expect_to_kill("test.slice/Q/F/P", [&](auto& ctx) { return; });
+
+  expect_to_kill("test.slice/B/M/Z", [&](auto& ctx) {
+    TestHelper::setCgroupData(
+        ctx,
+        CgroupPath(tempdir_, "test.slice/Q"),
+        CgroupData{.kill_preference = KillPreference::AVOID});
+  });
+
   expect_to_kill("test.slice/B/M/V", [&](auto& ctx) {
     TestHelper::setCgroupData(
         ctx,
@@ -508,8 +518,8 @@ TEST_F(StandardKillRecursionTest, RespectsPreferAvoid) {
         CgroupData{.kill_preference = KillPreference::PREFER});
   });
 
-  // Test locality of prefs. Even though Y/M/X is PREFER, it's not chosen
-  // because Q is chosen over Y in the first level of the tree.
+  // Test locality of prefs. Even though B/M/V is PREFER, it's not chosen
+  // because Q is chosen over B in the first level of the tree.
   // Q/F/P is selected despite being the only AVOID in a tree with a PREFER.
   expect_to_kill("test.slice/Q/F/P", [&](auto& ctx) {
     TestHelper::setCgroupData(
@@ -532,6 +542,36 @@ TEST_F(StandardKillRecursionTest, RespectsPreferAvoid) {
         ctx,
         CgroupPath(tempdir_, "test.slice/B/M/Z"),
         CgroupData{.kill_preference = KillPreference::AVOID});
+  });
+
+  // Preserve the Q branch
+  std::unordered_map<std::string, int> kvp = {{ "test.slice/Q", -1 }};
+  expect_to_kill("test.slice/B/M/Z", [&](auto& ctx) {
+    ctx.setInvokingKillIndex(&kvp);
+  });
+
+  // Prefer to kill B/M/V over B/M/Z (default of 0)
+  kvp["test.slice/B/M/V"] = 99;
+  expect_to_kill("test.slice/B/M/V", [&](auto& ctx) {
+    ctx.setInvokingKillIndex(&kvp);
+  });
+
+  // Set B/M/Z equal to B/M/V, fall back to descending alphabetical order
+  kvp["test.slice/B/M/Z"] = 99;
+  expect_to_kill("test.slice/B/M/Z", [&](auto& ctx) {
+    ctx.setInvokingKillIndex(&kvp);
+  });
+
+  // Explicitly set B/M/Z below B/M/V
+  kvp["test.slice/B/M/Z"] = 98;
+  expect_to_kill("test.slice/B/M/V", [&](auto& ctx) {
+    ctx.setInvokingKillIndex(&kvp);
+  });
+
+  // Preserve B/M
+  kvp["test.slice/B/M"] = -1;
+  expect_to_kill("test.slice/A/Z", [&](auto& ctx) {
+    ctx.setInvokingKillIndex(&kvp);
   });
 }
 

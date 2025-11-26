@@ -146,6 +146,10 @@ void OomdContext::setInvokingRuleset(std::optional<Engine::Ruleset*> ruleset) {
   invoking_ruleset_ = ruleset;
 }
 
+void OomdContext::setInvokingKillIndex(std::optional<std::unordered_map<std::string, int>*> p) {
+  invoking_kill_index_ = p;
+}
+
 const std::optional<CgroupPath> OomdContext::getRulesetCgroup() const {
   return ruleset_cgroup_;
 }

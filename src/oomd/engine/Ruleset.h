@@ -44,7 +44,8 @@ class Ruleset {
       int prekill_hook_timeout = DEFAULT_PREKILL_HOOK_TIMEOUT,
       const std::string& xattr_filter = "",
       const std::string& cgroup_fs = "",
-      const std::string& cgroup = "");
+      const std::string& cgroup = "",
+      std::unordered_map<std::string, int> kill_index = {});
   Ruleset(
       const std::string& name,
       std::vector<std::unique_ptr<DetectorGroup>> detector_groups,
@@ -56,7 +57,8 @@ class Ruleset {
       uint32_t silenced_logs,
       int post_action_delay,
       int prekill_hook_timeout,
-      std::unordered_set<CgroupPath>);
+      std::unordered_set<CgroupPath> cgroups,
+      std::unordered_map<std::string, int> kill_index);
   ~Ruleset() = default;
 
   /*
@@ -118,6 +120,7 @@ class Ruleset {
   std::string xattr_filter_;
   std::optional<std::unordered_set<CgroupPath>> cgroups_{std::nullopt};
   std::unordered_map<std::string, std::unique_ptr<Ruleset>> runnable_rulesets_;
+  std::unordered_map<std::string, int> kill_index_;
 
   struct AsyncActionChainState {
    public:

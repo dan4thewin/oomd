@@ -86,6 +86,13 @@ void dumpIR(const Root& root) {
     OLOG << getIndentSpaces(indent)
          << "AlwaysContinue=" << ruleset.always_continue;
 
+    OLOG << getIndentSpaces(indent) << "KillIndex=";
+    ++indent;
+    for (const auto& pair : ruleset.kill_index) {
+          OLOG << getIndentSpaces(indent) << pair.first << "=" << pair.second;
+    }
+    --indent;
+
     // Print DetectorGroup's
     for (const auto& dg : ruleset.dgs) {
       OLOG << getIndentSpaces(indent) << "DetectorGroup=" << dg.name;

@@ -86,7 +86,7 @@ std::vector<OomdContext::ConstCgroupContextRef>
 KillSwapUsage<Base>::rankForKilling(
     OomdContext& ctx,
     const std::vector<OomdContext::ConstCgroupContextRef>& cgroups) {
-  return OomdContext::sortDescWithKillPrefs(
+  return OomdContext::sortDescWithKillPrefs(ctx,
       Util::filter(
           cgroups,
           [=, this](const CgroupContext& cgroup_ctx) {

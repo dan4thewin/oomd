@@ -104,6 +104,25 @@ Oomd::Config2::IR::DropIn parseDropIn(const Json::Value& dropin) {
   return ir_dropin;
 }
 
+std::unordered_map<std::string, int> parseKillIndex(const Json::Value& dict) {
+  if (!dict.isObject()) {
+    return {};
+  }
+
+  std::unordered_map<std::string, int> ret;
+
+  for (const auto& key : dict.getMemberNames()) {
+    const auto& value = dict[key];
+    if (!value.isNumeric()) {
+      OLOG << "Value is not a number in kill-index" << value.asString();
+      throw std::runtime_error("Invalid config");
+    }
+    ret[key] = value.asInt();
+  }
+
+  return ret;
+}
+
 Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
   Oomd::Config2::IR::Ruleset ir_ruleset;
 
@@ -132,6 +151,8 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
 
   ir_ruleset.xattr_filter = ruleset.get("xattr_filter", {}).asString();
   ir_ruleset.cgroup = ruleset.get("cgroup", {}).asString();
+
+  ir_ruleset.kill_index = parseKillIndex(ruleset.get("kill-index", {}));
 
   return ir_ruleset;
 }

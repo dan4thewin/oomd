@@ -75,6 +75,7 @@ struct Ruleset {
   std::string xattr_filter;
   std::string cgroup;
   bool always_continue{false};
+  std::unordered_map<std::string, int> kill_index;
 };
 
 struct Root {

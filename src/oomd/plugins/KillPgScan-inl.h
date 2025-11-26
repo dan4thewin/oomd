@@ -76,7 +76,7 @@ KillPgScan<Base>::rankForKilling(
     }
   }
 
-  return OomdContext::sortDescWithKillPrefs(
+  return OomdContext::sortDescWithKillPrefs(ctx,
       Util::filter(
           cgroups,
           [=](const CgroupContext& cgroup_ctx) {
