@@ -26,7 +26,7 @@ namespace Config2 {
 
 class JsonConfigParser {
  public:
-  std::unique_ptr<IR::Root> parse(const std::string& input);
+  std::unique_ptr<IR::Root> parse(const std::string& input, const std::string& path);
 };
 
 } // namespace Config2

@@ -162,10 +162,12 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
 namespace Oomd {
 namespace Config2 {
 
-std::unique_ptr<IR::Root> JsonConfigParser::parse(const std::string& input) {
+std::unique_ptr<IR::Root> JsonConfigParser::parse(const std::string& input, const std::string& path) {
   Json::Value json_root;
   getJson(json_root, input);
   auto ir_root = std::make_unique<IR::Root>();
+
+  ir_root->path = std::move(path);
 
   for (const auto& ruleset : json_root.get("rulesets", {})) {
     ir_root->rulesets.emplace_back(parseRuleset(ruleset));

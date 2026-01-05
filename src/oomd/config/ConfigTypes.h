@@ -81,6 +81,7 @@ struct Ruleset {
 struct Root {
   std::vector<Ruleset> rulesets;
   std::vector<PrekillHook> prekill_hooks;
+  std::string path;
 };
 
 void dumpIR(const Root& root);

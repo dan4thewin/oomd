@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <cmath>
 #include <functional>
+#include <sys/stat.h>
 #include <thread>
 
 #include "oomd/CgroupContext.h"
@@ -36,12 +37,14 @@ Oomd::Oomd(
     std::unique_ptr<Config2::IR::Root> ir_root,
     std::unique_ptr<Engine::Engine> engine,
     int interval,
+    int config_interval,
     const std::string& cgroup_fs,
     const std::string& drop_in_dir,
     const std::unordered_map<std::string, DeviceType>& io_devs,
     const IOCostCoeffs& hdd_coeffs,
     const IOCostCoeffs& ssd_coeffs)
     : interval_(interval),
+      config_interval_(config_interval),
       ir_root_(std::move(ir_root)),
       engine_(std::move(engine)) {
   ContextParams params{
@@ -112,6 +115,15 @@ void Oomd::updateContext() {
 }
 
 int Oomd::run(const sigset_t* mask) {
+  struct stat first_sb;
+  auto last_stat = time(NULL);
+  auto config_interval = config_interval_.count();
+  if (config_interval > 0 && ::stat(ir_root_->path.c_str(), &first_sb) == -1) {
+    OLOG << "Failed to stat config file: " << ir_root_->path << "; "
+         << Util::strerror_r() << "\n";
+    return EXIT_CANT_RECOVER;
+  }
+
   if (!engine_) {
     OLOG << "Could not run engine. Your config file is probably invalid\n";
     return EXIT_CANT_RECOVER;
@@ -155,6 +167,20 @@ int Oomd::run(const sigset_t* mask) {
 
     // Run all the plugins
     engine_->runOnce(ctx_);
+
+    if (config_interval > 0) {
+      auto now = time(NULL);
+      if (now-last_stat >= config_interval) {
+        last_stat = now;
+        struct stat sb;
+        if (::stat(ir_root_->path.c_str(), &sb) != -1 &&
+            (first_sb.st_ino != sb.st_ino ||
+             first_sb.st_mtim.tv_sec != sb.st_mtim.tv_sec)) {
+          OLOG << "Config file changed - restart";
+          return -2;
+        }
+      }
+    }
   }
 
   return 0;

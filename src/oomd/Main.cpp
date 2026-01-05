@@ -86,6 +86,7 @@ static void printUsage() {
          "  --version, -v              Print version and exit\n"
          "  --config, -C CONFIG        Config file (default: /etc/oomd.json)\n"
          "  --interval, -i INTERVAL    Event loop polling interval (default: 5)\n"
+         "  --config-interval, -I n    Check for config changes every n seconds (default: 60s; 0 to disable)\n"
          "  --cgroup-fs, -f FS         Cgroup2 filesystem mount point (default: /sys/fs/cgroup)\n"
          "  --check-config, -c CONFIG  Check config file (default: /etc/oomd.json)\n"
          "  --list-plugins, -l         List all available plugins\n"
@@ -137,7 +138,7 @@ static std::unique_ptr<Oomd::Config2::IR::Root> parseConfig(
   std::stringstream buf;
   buf << conf_file.rdbuf();
   Oomd::Config2::JsonConfigParser json_parser;
-  auto ir = json_parser.parse(buf.str());
+  auto ir = json_parser.parse(buf.str(), flag_conf_file);
   if (!ir) {
     std::cerr << "Could not parse conf_file=" << flag_conf_file << std::endl;
     return nullptr;
@@ -204,7 +205,7 @@ static bool initRuntimeDir(const fs::path& runtime_dir) {
   fs::path lockfile = runtime_dir / kRuntimeLock;
 
   // Don't bother storing file lock FD. Just let it close when process exits.
-  int lockfd = ::open(lockfile.c_str(), O_CREAT, S_IRUSR | S_IWUSR);
+  int lockfd = ::open(lockfile.c_str(), O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
   if (lockfd < 0) {
     OLOG << "Failed to open lock file=" << lockfile << ": "
          << ::strerror_r(errno, err_buf.data(), err_buf.size());
@@ -235,6 +236,7 @@ int main(int argc, char** argv) {
   std::string dev_id;
   std::string kmsg_path = kKmsgPath;
   int interval = 5;
+  int config_interval = 60;
   bool should_check_config = false;
 
   int option_index = 0;
@@ -254,7 +256,7 @@ int main(int argc, char** argv) {
     exit(EXIT_FAILURE);
   }
 
-  const char* const short_options = "hvC:w:i:f:c:lD:dr";
+  const char* const short_options = "hvC:w:i:f:c:lD:drk:I:";
   option long_options[] = {
       option{"help", no_argument, nullptr, 'h'},
       option{"version", no_argument, nullptr, 'v'},
@@ -271,6 +273,7 @@ int main(int argc, char** argv) {
       option{"ssd-coeffs", required_argument, nullptr, OPT_SSD_COEFFS},
       option{"hdd-coeffs", required_argument, nullptr, OPT_HDD_COEFFS},
       option{"kmsg-override", required_argument, nullptr, 'k'},
+      option{"config-interval", required_argument, nullptr, 'I'},
       option{nullptr, 0, nullptr, 0}};
 
   while ((c = getopt_long(
@@ -312,7 +315,17 @@ int main(int argc, char** argv) {
           std::cerr << "Interval not a >0 integer: " << optarg << std::endl;
           return 1;
         }
-
+        break;
+      case 'I':
+        try {
+          config_interval = std::stoi(optarg, &parsed_len);
+        } catch (const std::invalid_argument&) {
+          parse_error = true;
+        }
+        if (parse_error || config_interval < 0 || parsed_len != strlen(optarg)) {
+          std::cerr << "Interval is negative: " << optarg << std::endl;
+          return 1;
+        }
         break;
       case 'f':
         cgroup_fs = std::string(optarg);
@@ -486,10 +499,12 @@ int main(int argc, char** argv) {
       std::move(ir),
       std::move(engine),
       interval,
+      config_interval,
       cgroup_fs,
       drop_in_dir,
       *io_devs,
       hdd_coeffs,
       ssd_coeffs);
-  return oomd.run(&mask);
+  auto ret = oomd.run(&mask);
+  return ret == -2 ? execv(argv[0], argv) : ret;
 }
