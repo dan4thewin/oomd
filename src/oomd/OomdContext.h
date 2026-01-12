@@ -180,10 +180,11 @@ class OomdContext {
       OomdContext& ctx,
       const std::vector<ConstCgroupContextRef>& cgroups,
       Functor&& get_key) {
-    if (ctx.invoking_kill_index_)
-      return sortDescWithKillIndex(ctx, cgroups, get_key);
-    else
+    auto optindex = ctx.invoking_kill_index_;
+    if (!optindex || (*optindex)->empty())
       return sortDescWithKillPrefs(ctx, cgroups, get_key);
+    else
+      return sortDescWithKillIndex(ctx, cgroups, get_key);
   }
 
   /*

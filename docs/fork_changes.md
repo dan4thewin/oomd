@@ -3,9 +3,54 @@
 This branch adds new plugins and makes small changes to the oomd engine
 to complement them.  The new plugins are: sleep, always_reclaim, interdict,
 and run_command.  The engine now supports an exit registry where plugins
-can add functions to run at oomd exit, and an always-continue flag to
+can add functions to run at oomd exit, an always-continue flag to
 always run a ruleset's actions which may behave differently when detectors
-fail to match.
+fail to match, and a per-ruleset kill-index section to modify kill targets.
+
+
+# Ruleset
+
+## kill-index
+
+A ruleset may contain a `kill-index` section that pairs a cgroup relative
+path with an integer.  When sorting target cgroups to select a kill candidate,
+this integer acts as the primary sort key.  `oomd` chooses the cgroup with the
+greatest index.  cgroups default to an index value of 0.  `oomd` never chooses
+a cgroup with a negative index.  Without a `kill-index` section, `oomd`
+defaults to its original sort using extended attributes, "trusted.oomd_prefer"
+and "trusted.oomd_avoid".
+
+### Example
+
+    {
+      "rulesets": [
+        {
+          "name": "test kills",
+          "kill-index": {
+            "system.slice/test1.service": -1,
+            "system.slice/test2.service": 4,
+            "system.slice/test2.service": 9
+          },
+          "detectors": [
+            [
+              "cgroups named test",
+              {
+                "name": "exists",
+                "args": { "cgroup": "system.slice/test*service" }
+              }
+            ]
+          ],
+          "actions": [
+            {
+              "name": "kill_by_pressure",
+              "args": { "cgroup": "system.slice/test*service",
+                        "resource": "memory", "dry": "true" }
+            }
+          ]
+        }
+      ]
+    }
+
 
 # Plugins
 

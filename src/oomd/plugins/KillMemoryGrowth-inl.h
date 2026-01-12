@@ -138,8 +138,8 @@ KillMemoryGrowth<Base>::rankForKilling(
   auto rank_cgroup = get_ranking_fn(ctx, cgroups);
 
   // Note kill_preference take priority over phase, which is
-  // handled automatically by sortDescWithKillPrefs.
-  return OomdContext::sortDescWithKillPrefs(ctx,
+  // handled automatically by sortDescWithKillValue.
+  return OomdContext::sortDescWithKillValue(ctx,
       cgroups, [&](const CgroupContext& cgroup_ctx) {
         return rank_cgroup(cgroup_ctx).second;
       });

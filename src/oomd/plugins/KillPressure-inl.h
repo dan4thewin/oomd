@@ -42,7 +42,7 @@ std::vector<OomdContext::ConstCgroupContextRef>
 KillPressure<Base>::rankForKilling(
     OomdContext& ctx,
     const std::vector<OomdContext::ConstCgroupContextRef>& cgroups) {
-  return OomdContext::sortDescWithKillPrefs(ctx,
+  return OomdContext::sortDescWithKillValue(ctx,
       cgroups, [&](const CgroupContext& cgroup_ctx) {
         int average = 0;
         switch (resource_) {

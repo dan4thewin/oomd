@@ -192,7 +192,8 @@ std::unique_ptr<Oomd::Engine::Ruleset> compileRuleset(
       prekill_hook_timeout,
       ruleset.xattr_filter,
       context.cgroupFs(),
-      ruleset.cgroup);
+      ruleset.cgroup,
+      std::move(ruleset.kill_index));
 }
 
 } // namespace
