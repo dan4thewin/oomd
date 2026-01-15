@@ -41,6 +41,7 @@ class Oomd {
       std::unique_ptr<Config2::IR::Root> ir_root,
       std::unique_ptr<Engine::Engine> engine,
       int interval,
+      int config_interval,
       const std::string& cgroup_fs,
       const std::string& drop_in_dir,
       const std::unordered_map<std::string, DeviceType>& io_devs = {},
@@ -54,6 +55,7 @@ class Oomd {
  private:
   // runtime settings
   std::chrono::seconds interval_{0};
+  std::chrono::seconds config_interval_{0};
   std::unique_ptr<Config2::IR::Root> ir_root_;
   std::unique_ptr<Engine::Engine> engine_;
   std::unique_ptr<DropInServiceAdaptor> fs_drop_in_service_;

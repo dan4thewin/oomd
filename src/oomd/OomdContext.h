@@ -122,11 +122,41 @@ class OomdContext {
   }
 
   /*
+   * Sorts cgroups by kill_index, then get_key. Highest first to lowest
+   * last. Removes cgroups that must not be killed.
+   * Returns new vec; does not mutate cgroups arg.
+   */
+  template <class Functor>
+  static std::vector<ConstCgroupContextRef> sortDescWithKillIndex(
+      OomdContext& ctx,
+      const std::vector<ConstCgroupContextRef>& cgroups,
+      Functor&& get_key) {
+
+    auto kill_index = [&](ConstCgroupContextRef r) {
+      auto index = *ctx.invoking_kill_index_;
+      auto it = index->find(r.get().cgroup().relativePath());
+      return it != index->end() ? it->second : int(KillPreference::NORMAL);
+    };
+
+    std::vector<ConstCgroupContextRef> ret;
+    std::copy_if(cgroups.begin(), cgroups.end(), std::back_inserter(ret),
+        [&](const auto& r){ return kill_index(r) >= int(KillPreference::NORMAL); });
+
+    std::sort(ret.begin(), ret.end(), [&](const auto& a, const auto& b) {
+      return std::make_tuple(kill_index(a), get_key(a.get())) >
+             std::make_tuple(kill_index(b), get_key(b.get()));
+    });
+
+    return ret;
+  }
+
+  /*
    * Sorts cgroups by kill_preference, then get_key. Highest first to lowest
    * last. Returns new vec; does not mutate cgroups arg.
    */
   template <class Functor>
   static std::vector<ConstCgroupContextRef> sortDescWithKillPrefs(
+      OomdContext& ctx,
       const std::vector<ConstCgroupContextRef>& cgroups,
       Functor&& get_key) {
     auto sorted = cgroups;
@@ -139,6 +169,22 @@ class OomdContext {
                  get_key(b.get()));
     });
     return sorted;
+  }
+
+  /*
+   * Use kill index values supplied in rulset if available, otherwise
+   * use attribute-based kill preference.
+   */
+  template <class Functor>
+  static std::vector<ConstCgroupContextRef> sortDescWithKillValue(
+      OomdContext& ctx,
+      const std::vector<ConstCgroupContextRef>& cgroups,
+      Functor&& get_key) {
+    auto optindex = ctx.invoking_kill_index_;
+    if (!optindex || (*optindex)->empty())
+      return sortDescWithKillPrefs(ctx, cgroups, get_key);
+    else
+      return sortDescWithKillIndex(ctx, cgroups, get_key);
   }
 
   /*
@@ -174,6 +220,7 @@ class OomdContext {
    */
   const std::optional<Engine::Ruleset*> getInvokingRuleset();
   void setInvokingRuleset(std::optional<Engine::Ruleset*> ruleset);
+  void setInvokingKillIndex(std::optional<std::unordered_map<std::string, int>*> p);
 
   /*
    * Used to let kill plugins invoke prekill hooks
@@ -206,6 +253,7 @@ class OomdContext {
   SystemContext system_ctx_;
   uint64_t current_tick_{0};
   std::optional<Engine::Ruleset*> invoking_ruleset_{std::nullopt};
+  std::optional<std::unordered_map<std::string, int>*> invoking_kill_index_{std::nullopt};
   std::function<std::optional<std::unique_ptr<Engine::PrekillHookInvocation>>(
       const CgroupContext& cgroup_ctx)>
       prekill_hook_handler_{nullptr};

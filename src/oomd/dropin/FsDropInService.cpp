@@ -237,7 +237,7 @@ void FsDropInService::processDropInAdd(const std::string& file) {
   Config2::JsonConfigParser json_parser;
   std::unique_ptr<Config2::IR::Root> dropin_root;
   try {
-    dropin_root = json_parser.parse(buf.str());
+    dropin_root = json_parser.parse(buf.str(), file);
   } catch (const std::exception& e) {
     OLOG << "Caught: " << e.what();
     OLOG << "Failed to inject drop in config into engine";

@@ -35,7 +35,7 @@ TEST(JsonConfigParserTest, LoadIR) {
 
   // Make sure the IR was generated
   JsonConfigParser parser;
-  auto root = parser.parse(buffer.str());
+  auto root = parser.parse(buffer.str(), kConfig_1_0_0);
   ASSERT_TRUE(root);
 
   // Check root values
@@ -103,5 +103,5 @@ TEST(JsonConfigParserTest, LoadIR) {
 
 TEST(JsonConfigParserTest, LoadIRBadInput) {
   JsonConfigParser parser;
-  ASSERT_THROW(parser.parse("not a json string"), std::runtime_error);
+  ASSERT_THROW(parser.parse("not a json string","ignore"), std::runtime_error);
 }

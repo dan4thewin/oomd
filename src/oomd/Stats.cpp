@@ -102,7 +102,7 @@ bool& Stats::isInitInternal() {
 bool Stats::startSocket() {
   std::array<char, 64> err_buf = {};
 
-  sockfd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  sockfd_ = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (sockfd_ < 0) {
     OLOG << "Error creating socket: "
          << ::strerror_r(errno, err_buf.data(), err_buf.size() - 1);

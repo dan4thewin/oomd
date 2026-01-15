@@ -83,6 +83,15 @@ void dumpIR(const Root& root) {
          << "PrekillHookTimeout=" << ruleset.prekill_hook_timeout;
     OLOG << getIndentSpaces(indent) << "XattrFilter=" << ruleset.xattr_filter;
     OLOG << getIndentSpaces(indent) << "Cgroup=" << ruleset.cgroup;
+    OLOG << getIndentSpaces(indent)
+         << "AlwaysContinue=" << ruleset.always_continue;
+
+    OLOG << getIndentSpaces(indent) << "KillIndex=";
+    ++indent;
+    for (const auto& pair : ruleset.kill_index) {
+          OLOG << getIndentSpaces(indent) << pair.first << "=" << pair.second;
+    }
+    --indent;
 
     // Print DetectorGroup's
     for (const auto& dg : ruleset.dgs) {

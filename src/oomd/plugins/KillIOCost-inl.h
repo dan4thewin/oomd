@@ -40,7 +40,7 @@ std::vector<OomdContext::ConstCgroupContextRef>
 KillIOCost<Base>::rankForKilling(
     OomdContext& ctx,
     const std::vector<OomdContext::ConstCgroupContextRef>& cgroups) {
-  return OomdContext::sortDescWithKillPrefs(
+  return OomdContext::sortDescWithKillValue(ctx,
       cgroups, [](const CgroupContext& cgroup_ctx) {
         return cgroup_ctx.io_cost_rate().value_or(0);
       });

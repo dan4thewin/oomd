@@ -104,12 +104,33 @@ Oomd::Config2::IR::DropIn parseDropIn(const Json::Value& dropin) {
   return ir_dropin;
 }
 
+std::unordered_map<std::string, int> parseKillIndex(const Json::Value& dict) {
+  if (!dict.isObject()) {
+    return {};
+  }
+
+  std::unordered_map<std::string, int> ret;
+
+  for (const auto& key : dict.getMemberNames()) {
+    const auto& value = dict[key];
+    if (!value.isNumeric()) {
+      OLOG << "Value is not a number in kill-index" << value.asString();
+      throw std::runtime_error("Invalid config");
+    }
+    ret[key] = value.asInt();
+  }
+
+  return ret;
+}
+
 Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
   Oomd::Config2::IR::Ruleset ir_ruleset;
 
   ir_ruleset.name = ruleset.get("name", "").asString();
 
   ir_ruleset.dropin = parseDropIn(ruleset.get("drop-in", {}));
+
+  ir_ruleset.always_continue = ruleset.get("always-continue", false).asBool();
 
   ir_ruleset.silence_logs = ruleset.get("silence-logs", {}).asString();
 
@@ -131,6 +152,8 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
   ir_ruleset.xattr_filter = ruleset.get("xattr_filter", {}).asString();
   ir_ruleset.cgroup = ruleset.get("cgroup", {}).asString();
 
+  ir_ruleset.kill_index = parseKillIndex(ruleset.get("kill-index", {}));
+
   return ir_ruleset;
 }
 
@@ -139,10 +162,12 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
 namespace Oomd {
 namespace Config2 {
 
-std::unique_ptr<IR::Root> JsonConfigParser::parse(const std::string& input) {
+std::unique_ptr<IR::Root> JsonConfigParser::parse(const std::string& input, const std::string& path) {
   Json::Value json_root;
   getJson(json_root, input);
   auto ir_root = std::make_unique<IR::Root>();
+
+  ir_root->path = std::move(path);
 
   for (const auto& ruleset : json_root.get("rulesets", {})) {
     ir_root->rulesets.emplace_back(parseRuleset(ruleset));

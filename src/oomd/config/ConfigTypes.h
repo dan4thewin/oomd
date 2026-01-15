@@ -74,11 +74,14 @@ struct Ruleset {
   std::string prekill_hook_timeout;
   std::string xattr_filter;
   std::string cgroup;
+  bool always_continue{false};
+  std::unordered_map<std::string, int> kill_index;
 };
 
 struct Root {
   std::vector<Ruleset> rulesets;
   std::vector<PrekillHook> prekill_hooks;
+  std::string path;
 };
 
 void dumpIR(const Root& root);

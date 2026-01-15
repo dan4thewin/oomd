@@ -67,7 +67,7 @@ namespace Oomd {
 SystemMaybe<Fs::Fd>
 Fs::Fd::openat(const DirFd& dirfd, const std::string& path, bool read_only) {
   int flags = read_only ? O_RDONLY : O_WRONLY;
-  const auto fd = ::openat(dirfd.fd(), path.c_str(), flags);
+  const auto fd = ::openat(dirfd.fd(), path.c_str(), flags | O_CLOEXEC);
   if (fd == -1) {
     return SYSTEM_ERROR(errno);
   }
@@ -76,7 +76,7 @@ Fs::Fd::openat(const DirFd& dirfd, const std::string& path, bool read_only) {
 
 SystemMaybe<Fs::Fd> Fs::Fd::open(const std::string& path, bool read_only) {
   int flags = read_only ? O_RDONLY : O_WRONLY;
-  const auto fd = ::open(path.c_str(), flags);
+  const auto fd = ::open(path.c_str(), flags | O_CLOEXEC);
   if (fd == -1) {
     return SYSTEM_ERROR(errno);
   }
@@ -99,7 +99,7 @@ void Fs::Fd::close() {
 }
 
 SystemMaybe<Fs::DirFd> Fs::DirFd::open(const std::string& path) {
-  int fd = ::open(path.c_str(), O_RDONLY | O_DIRECTORY);
+  int fd = ::open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (fd == -1) {
     return SYSTEM_ERROR(errno);
   }
@@ -107,7 +107,7 @@ SystemMaybe<Fs::DirFd> Fs::DirFd::open(const std::string& path) {
 }
 
 SystemMaybe<Fs::DirFd> Fs::DirFd::openChildDir(const std::string& path) const {
-  int child_fd = ::openat(fd(), path.c_str(), O_RDONLY | O_DIRECTORY);
+  int child_fd = ::openat(fd(), path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
   if (child_fd == -1) {
     return SYSTEM_ERROR(errno);
   }
@@ -762,6 +762,14 @@ SystemMaybe<Unit> Fs::writeMemhightmpAt(
     return SYSTEM_ERROR(ret.error());
   }
   return noSystemError();
+}
+
+SystemMaybe<int64_t> Fs::readMemReclaimAt(const DirFd& dirfd) {
+  auto lines = readFileByLine(Fs::Fd::openat(dirfd, kMemReclaimFile));
+  if (!lines) {
+    return SYSTEM_ERROR(lines.error());
+  }
+  return static_cast<int64_t>(std::stoll((*lines)[0]));
 }
 
 SystemMaybe<Unit> Fs::writeMemReclaimAt(
