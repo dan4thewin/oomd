@@ -3635,16 +3635,32 @@ TEST_F(RunCommandTest , RunCommandCache) {
   EXPECT_EQ(2, WEXITSTATUS(
         std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
 
-  plugin = createPlugin("run_command");
-  ASSERT_NE(plugin, nullptr);
+  auto plugin2 = createPlugin("run_command");
+  ASSERT_NE(plugin2, nullptr);
 
   args["cache_sec"] = "100";
 
-  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  ASSERT_EQ(plugin2->init(std::move(args), compile_context), 0);
 
-  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
-  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
-  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin2->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin2->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin2->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  EXPECT_EQ(1, WEXITSTATUS(
+        std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));
+
+  auto plugin3 = createPlugin("run_command");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args3;
+  args3["command"] = tempdir_ + "/go";
+  args3["use_exit_value"] = "true";
+  args3["once"] = "true";
+
+  ASSERT_EQ(plugin3->init(std::move(args3), compile_context), 0);
+
+  EXPECT_EQ(plugin3->run(ctx_), Engine::PluginRet::CONTINUE);
+  EXPECT_EQ(plugin3->run(ctx_), Engine::PluginRet::CONTINUE);
 
   EXPECT_EQ(1, WEXITSTATUS(
         std::system("rc=`ls go.* | grep -c .`; rm -f go.*; exit $rc")));

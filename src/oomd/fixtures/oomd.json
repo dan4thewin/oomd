@@ -1,4 +1,6 @@
 {
+    "interval": 60,
+    "config_interval": 300,
     "rulesets": [
         {
             "name": "my first ruleset",

@@ -15,6 +15,9 @@ namespace Oomd {
 
 REGISTER_PLUGIN(run_command, RunCommand::create);
 
+using Engine::PluginRet::STOP;
+using Engine::PluginRet::CONTINUE;
+
 int RunCommand::init(
     const Engine::PluginArgs& pluginArgs,
     const PluginConstructionContext& context) {
@@ -23,6 +26,7 @@ int RunCommand::init(
   argParser_.addArgument("command", command_, true);
   argParser_.addArgument("use_exit_value", useExitValue_);
   argParser_.addArgument("cache_sec", cacheSec_);
+  argParser_.addArgument("once", once_);
   argParser_.addArgument("timeout_msec", timeoutMsec_);
   argParser_.addArgument("argument", wholeArg);
 
@@ -78,15 +82,19 @@ SystemMaybe<int> RunCommand::forkexec() {
 }
 
 Engine::PluginRet RunCommand::run(OomdContext& ctx) {
+  if (once_ && ret_) {
+    return ret_.value();  // return quietly - log only the initial execution
+  }
+
   using std::chrono::steady_clock;
 
   const auto now = steady_clock::now();
   const auto diff =
       std::chrono::duration_cast<std::chrono::seconds>(now - start_).count();
   if (diff < cacheSec_) {
-    const auto s = ret_ == Engine::PluginRet::CONTINUE ? "CONTINUE" : "STOP";
+    const auto s = ret_ == CONTINUE ? "CONTINUE" : "STOP";
     OLOG << "using cached result; diff=" << diff << " ret=" << s;
-    return ret_; // Skip execution if within cache time
+    return ret_.value(); // Skip execution if within cache time
   }
 
   start_ = now;
@@ -94,18 +102,18 @@ Engine::PluginRet RunCommand::run(OomdContext& ctx) {
   const auto maybe = forkexec();
   if (!maybe) {
     OLOG << maybe.error().what();
-    return ret_ = useExitValue_ ? Engine::PluginRet::STOP
-                                : Engine::PluginRet::CONTINUE;
+    ret_ = useExitValue_ ? STOP : CONTINUE;
+    return ret_.value();
   }
 
   ret_ = useExitValue_ && (!WIFEXITED(*maybe) || WEXITSTATUS(*maybe) != 0)
-      ? Engine::PluginRet::STOP // Non-zero exit value or killed
-      : Engine::PluginRet::CONTINUE;
+      ? STOP // Non-zero exit value or killed
+      : CONTINUE;
 
-  const auto s = ret_ == Engine::PluginRet::CONTINUE ? "CONTINUE" : "STOP";
+  const auto s = ret_ == CONTINUE ? "CONTINUE" : "STOP";
   OLOG << "use_exit_value=" << useExitValue_ << " status=" << *maybe
        << " exit=" << WEXITSTATUS(*maybe) << " ret=" << s;
-  return ret_;
+  return ret_.value();
 }
 
 } // namespace Oomd

@@ -98,7 +98,7 @@ static void printUsage() {
          "  --device DEVS              Comma separated <major>:<minor> pairs for IO cost calculation (default: none)\n"
          "  --ssd-coeffs COEFFS        Comma separated values for SSD IO cost calculation (default: see doc)\n"
          "  --hdd-coeffs COEFFS        Comma separated values for HDD IO cost calculation (default: see doc)\n"
-         "  --kmsg-override PATH       File to log kills to (default: /dev/kmsg)"
+         "  --kmsg-override, -k PATH   File to log kills to (default: /dev/kmsg)"
       << std::endl;
 }
 
@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
           parse_error = true;
         }
         if (parse_error || config_interval < 0 || parsed_len != strlen(optarg)) {
-          std::cerr << "Interval is negative: " << optarg << std::endl;
+          std::cerr << "Config interval not a >-1 integer: " << optarg << std::endl;
           return 1;
         }
         break;
@@ -480,13 +480,23 @@ int main(int argc, char** argv) {
     return EXIT_CANT_RECOVER;
   }
 
-  std::cerr << "oomd running with conf_file=" << flag_conf_file
-            << " interval=" << interval << std::endl;
+  std::cerr << "oomd running with conf_file=" << flag_conf_file << std::endl;
 
   auto ir = parseConfig(flag_conf_file);
   if (!ir) {
     return EXIT_CANT_RECOVER;
   }
+
+  if (ir->interval > -1) {
+    interval = ir->interval;
+  }
+
+  if (ir->config_interval > -1) {
+    config_interval = ir->config_interval;
+  }
+
+  std::cerr << "oomd running with interval=" << interval
+            << " config_interval=" << config_interval << std::endl;
 
   Oomd::PluginConstructionContext compile_context(cgroup_fs);
 
