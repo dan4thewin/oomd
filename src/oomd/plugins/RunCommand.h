@@ -28,10 +28,11 @@ class RunCommand : public Engine::BasePlugin {
 
   std::string command_;
   int64_t cacheSec_{0}; // Default to no caching
+  bool once_{false};
   std::chrono::milliseconds timeoutMsec_{std::chrono::milliseconds(500)};
   bool useExitValue_{false};
   std::chrono::time_point<std::chrono::steady_clock> start_{};
-  Engine::PluginRet ret_;
+  std::optional<Engine::PluginRet> ret_;
   std::vector<std::string> args_;
   std::vector<char*> c_args_;
 };

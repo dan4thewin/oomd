@@ -27,7 +27,7 @@ namespace {
  * vary because some lines numbers are 3 digits and some are 2.
  */
 Oomd::LogStream::Offset getIndentSpaces(uint64_t depth) {
-  return Oomd::LogStream::Offset{.n = ::strlen(FILENAME) + 7 + depth * 2};
+  return Oomd::LogStream::Offset{.n = ::strlen(FILENAME) + 20 + depth * 2};
 }
 } // namespace
 
@@ -37,6 +37,15 @@ namespace IR {
 
 void dumpIR(const Root& root) {
   int indent = 0;
+
+  if (root.interval > -1) {
+    OLOG << getIndentSpaces(indent) << "interval=" << root.interval;
+  }
+
+  if (root.config_interval > -1) {
+    OLOG << getIndentSpaces(indent) << "config_interval="
+         << root.config_interval;
+  }
 
   // Prekill hooks
   OLOG << getIndentSpaces(indent) << root.prekill_hooks.size()

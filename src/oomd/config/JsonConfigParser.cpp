@@ -157,6 +157,21 @@ Oomd::Config2::IR::Ruleset parseRuleset(const Json::Value& ruleset) {
   return ir_ruleset;
 }
 
+int parseConfigFromJson(const Json::Value& root, const std::string& key, int min) {
+  if (root.isObject() && root.isMember(key)) {
+    const auto& value = root[key];
+    if (value.isNumeric() && value > min) {
+      return value.asInt();
+    } else {
+      OLOG << "Value for " << key << " must be an integer >" << min <<": "
+           << value.asString();
+      throw std::runtime_error("Invalid config");
+    }
+  }
+
+  return -1;
+}
+
 } // namespace
 
 namespace Oomd {
@@ -168,6 +183,8 @@ std::unique_ptr<IR::Root> JsonConfigParser::parse(const std::string& input, cons
   auto ir_root = std::make_unique<IR::Root>();
 
   ir_root->path = std::move(path);
+  ir_root->interval = parseConfigFromJson(json_root, "interval", 0);
+  ir_root->config_interval = parseConfigFromJson(json_root, "config_interval", -1);
 
   for (const auto& ruleset : json_root.get("rulesets", {})) {
     ir_root->rulesets.emplace_back(parseRuleset(ruleset));

@@ -79,6 +79,7 @@ struct Ruleset {
 };
 
 struct Root {
+  int interval, config_interval;
   std::vector<Ruleset> rulesets;
   std::vector<PrekillHook> prekill_hooks;
   std::string path;

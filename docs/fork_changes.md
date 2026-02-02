@@ -2,11 +2,23 @@
 
 This branch adds new plugins and makes small changes to the oomd engine
 to complement them.  The new plugins are: sleep, always_reclaim, interdict,
-and run_command.  The engine now supports an exit registry where plugins
-can add functions to run at oomd exit, an always-continue flag to
-always run a ruleset's actions which may behave differently when detectors
-fail to match, and a per-ruleset kill-index section to modify kill targets.
+and run_command.  The engine now supports:
 
+* polling for config file changes
+  * restarts when a change is detected
+* an exit registry
+  * lets plugins add functions to run at oomd exit
+* an always-continue flag to always run a ruleset's actions
+  * lets plugins respond when detectors fail to match
+* a per-ruleset kill-index
+  * directly specify priorities of kill targets
+
+
+# Config File
+
+The looping interval and config file check interval may be specified either
+by command-line arguments or the top-level config file keys: "interval" and
+"config_interval".  If specified both ways, the config file takes precedence.
 
 # Ruleset
 
@@ -114,6 +126,7 @@ all saved values are written back.
     argument
     use_exit_value
     cache_sec
+    once
     timeout_msec
 
 ### Description
@@ -128,3 +141,6 @@ If `cache_sec`, default 0, is greater than 0 then the plugin returns
 the value from the last run for the duration specified.  If `timeout_msec`,
 default 500 milliseconds, is greater than 0, then a run exceeding the
 timeout is killed.  With `use_exit_value` true, a killed run returns STOP.
+
+With `once` set to true, the plugin runs `command` exactly once,
+caches the result, and returns the cached value for all future calls.

@@ -37,6 +37,13 @@ TEST(JsonConfigParserTest, LoadIR) {
   JsonConfigParser parser;
   auto root = parser.parse(buffer.str(), kConfig_1_0_0);
   ASSERT_TRUE(root);
+  EXPECT_EQ(root->path, kConfig_1_0_0);
+  EXPECT_EQ(root->interval, 60);
+  EXPECT_EQ(root->config_interval, 300);
+  auto root2 = parser.parse("{}", "foo");
+  EXPECT_EQ(root2->path, "foo");
+  EXPECT_EQ(root2->interval, -1);
+  EXPECT_EQ(root2->config_interval, -1);
 
   // Check root values
   ASSERT_EQ(root->rulesets.size(), 2);
