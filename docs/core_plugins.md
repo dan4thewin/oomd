@@ -116,6 +116,26 @@ STOP otherwise.
 CONTINUE if percentage of free:total swap drops below `threshold_pct` %.
 STOP otherwise.
 
+## mem_available
+
+### Arguments
+
+    threshold
+    duration
+    meminfo_location (optional, for testing)
+
+### Description
+CONTINUE if the system's `MemAvailable` (from `/proc/meminfo`) drops below
+`threshold` for longer than `duration` seconds. STOP otherwise.
+
+`threshold` accepts either an absolute memory amount or a percentage of total
+memory. An absolute memory amount accepts combinations of K|M|G|T suffixed
+components (e.g. `256M`, `1G 512M`). A percentage must be in the format `N%`.
+
+This detector monitors system-wide available memory as estimated by the kernel,
+which accounts for free pages, reclaimable page cache, and reclaimable slab,
+minus zone watermark reserves. It is orthogonal to per-cgroup memory limits.
+
 ## exists
 
 ### Arguments
