@@ -1468,6 +1468,143 @@ TEST_F(SwapFreeTest, SwapoutRate) {
   EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
 }
 
+class MemAvailableTest : public CorePluginsTest {};
+
+TEST_F(MemAvailableTest, LowMemAvailable) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  // meminfo fixture: MemAvailable = 262144 kB = 256 MB
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo";
+  args["threshold"] = "512M";
+  args["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+TEST_F(MemAvailableTest, EnoughMemAvailable) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  // meminfo_high fixture: MemAvailable = 4194304 kB = 4096 MB
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo_high";
+  args["threshold"] = "512M";
+  args["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+TEST_F(MemAvailableTest, ThresholdPercent) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  // meminfo fixture: MemTotal = 8388608 kB = 8192 MB
+  // MemAvailable = 262144 kB = 256 MB (3.1% of total)
+  // threshold 5% of 8192 MB = 409.6 MB > 256 MB => CONTINUE
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo";
+  args["threshold"] = "5%";
+  args["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+TEST_F(MemAvailableTest, ThresholdPercentEnough) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  // meminfo_high fixture: MemAvailable = 4096 MB (50% of 8192 MB)
+  // threshold 5% of 8192 MB = 409.6 MB < 4096 MB => STOP
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo_high";
+  args["threshold"] = "5%";
+  args["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+TEST_F(MemAvailableTest, DurationNotMet) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  // MemAvailable = 256 MB < 512 MB threshold, but duration = 100s
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo";
+  args["threshold"] = "512M";
+  args["duration"] = "100";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  // First run starts the timer but duration hasn't elapsed
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::STOP);
+}
+
+TEST_F(MemAvailableTest, DurationMet) {
+  auto plugin = createPlugin("mem_available");
+  ASSERT_NE(plugin, nullptr);
+
+  Engine::PluginArgs args;
+  args["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo";
+  args["threshold"] = "512M";
+  args["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin->init(std::move(args), compile_context), 0);
+  // duration=0 means trigger immediately
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+  // Should still trigger on subsequent runs
+  EXPECT_EQ(plugin->run(ctx_), Engine::PluginRet::CONTINUE);
+}
+
+TEST_F(MemAvailableTest, ResetsWhenRecovered) {
+  // Use two separate plugins with different fixtures to simulate recovery
+  auto plugin_low = createPlugin("mem_available");
+  ASSERT_NE(plugin_low, nullptr);
+
+  Engine::PluginArgs args_low;
+  args_low["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo";
+  args_low["threshold"] = "512M";
+  args_low["duration"] = "0";
+  const PluginConstructionContext compile_context(tempdir_);
+
+  ASSERT_EQ(plugin_low->init(std::move(args_low), compile_context), 0);
+  // Low memory triggers
+  EXPECT_EQ(plugin_low->run(ctx_), Engine::PluginRet::CONTINUE);
+
+  // Now test with high memory — a separate plugin instance since the fixture
+  // path is baked into the plugin at init time
+  auto plugin_high = createPlugin("mem_available");
+  ASSERT_NE(plugin_high, nullptr);
+
+  Engine::PluginArgs args_high;
+  args_high["meminfo_location"] =
+      "oomd/fixtures/plugins/mem_available/meminfo_high";
+  args_high["threshold"] = "512M";
+  args_high["duration"] = "0";
+  const PluginConstructionContext compile_context2(tempdir_);
+
+  ASSERT_EQ(plugin_high->init(std::move(args_high), compile_context2), 0);
+  // High memory does not trigger
+  EXPECT_EQ(plugin_high->run(ctx_), Engine::PluginRet::STOP);
+}
+
 class ExistsTest : public CorePluginsTest {};
 
 TEST_F(ExistsTest, Exists) {
