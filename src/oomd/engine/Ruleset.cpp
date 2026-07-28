@@ -133,12 +133,26 @@ void Ruleset::prerun(OomdContext& context) {
   if (!enabled_) {
     return;
   }
+  if (!cgroups_.has_value()) {
+    prerunImpl(context, std::nullopt);
+    return;
+  }
+  for (const auto& runnableRuleset : runnable_rulesets_) {
+    runnableRuleset.second->prerunImpl(context, runnableRuleset.first);
+  }
+}
+
+void Ruleset::prerunImpl(
+    OomdContext& context,
+    const std::optional<CgroupPath>& ruleset_cgroup) {
+  context.setRulesetCgroup(ruleset_cgroup);
   for (const auto& dg : detector_groups_) {
     dg->prerun(context);
   }
   for (const auto& action : action_group_) {
     action->prerun(context);
   }
+  context.setRulesetCgroup(std::nullopt);
 }
 
 uint32_t Ruleset::runOnce(OomdContext& context) {
@@ -148,7 +162,7 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
   if (!cgroups_.has_value()) {
     return runOnceImpl(context);
   }
-  auto visited = std::unordered_set<std::string>();
+  auto visited = std::unordered_set<CgroupPath>();
   uint32_t ret = 0;
   for (const auto& cgroupCtx : context.addToCacheAndGet(cgroups_.value(), {})) {
     auto& cgroup = cgroupCtx.get().cgroup();
@@ -164,13 +178,13 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
         continue;
       }
     }
-    if (!runnable_rulesets_.contains(cgroup.absolutePath())) {
+    if (!runnable_rulesets_.contains(cgroup)) {
       OLOG << "Adding runnable ruleset for cgroup: " << cgroup.absolutePath();
       registerRunnableRulesetForCgroupPath(context, cgroup);
     }
     context.setRulesetCgroup(cgroup);
-    ret = runnable_rulesets_[cgroup.absolutePath()]->runOnceImpl(context);
-    visited.insert(cgroup.absolutePath());
+    ret = runnable_rulesets_[cgroup]->runOnceImpl(context);
+    visited.insert(cgroup);
   }
   for (auto&& cgroup_it = runnable_rulesets_.begin();
        cgroup_it != runnable_rulesets_.end();
@@ -178,7 +192,8 @@ uint32_t Ruleset::runOnce(OomdContext& context) {
     if (visited.contains(cgroup_it->first)) {
       continue;
     }
-    OLOG << "Dropping runnable ruleset for cgroup: " << cgroup_it->first;
+    OLOG << "Dropping runnable ruleset for cgroup: "
+         << cgroup_it->first.absolutePath();
     runnable_rulesets_.erase(cgroup_it);
   }
   return ret;
@@ -330,6 +345,9 @@ void Ruleset::pause_actions(std::chrono::seconds duration) {
 void Ruleset::registerRunnableRulesetForCgroupPath(
     OomdContext& context,
     const CgroupPath& cgroup) {
+  // All detector and action plugins are copied from the original ruleset with
+  // exact same arguments. They will see different ruleset cgroup during run and
+  // prerun. Besides that they just store states to track their ruleset cgroup.
   auto detector_groups = std::vector<std::unique_ptr<DetectorGroup>>();
   detector_groups.reserve(detector_groups_.size());
   for (auto it = detector_groups_.begin(); it != detector_groups_.end(); ++it) {
@@ -341,9 +359,7 @@ void Ruleset::registerRunnableRulesetForCgroupPath(
   for (auto it = action_group_.begin(); it != action_group_.end(); ++it) {
     auto plugin = registry.create(it->get()->getName());
     plugin->setName(it->get()->getName());
-    auto args = it->get()->getPluginArgs();
-    args.try_emplace("cgroup", cgroup.relativePath());
-    plugin->init(args, PluginConstructionContext(cgroup.cgroupFs()));
+    plugin->init(it->get()->getPluginArgs(), it->get()->getPluginContext());
     action_group.emplace_back(plugin);
   }
   auto ruleset = std::make_unique<Ruleset>(
@@ -359,8 +375,8 @@ void Ruleset::registerRunnableRulesetForCgroupPath(
       prekill_hook_timeout_,
       std::unordered_set{CgroupPath(cgroup.cgroupFs(), cgroup.relativePath())},
       kill_index_);
-  ruleset->prerun(context);
-  runnable_rulesets_[cgroup.absolutePath()] = std::move(ruleset);
+  ruleset->prerunImpl(context, cgroup);
+  runnable_rulesets_[cgroup] = std::move(ruleset);
 }
 
 } // namespace Engine

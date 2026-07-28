@@ -183,7 +183,7 @@ int Oomd::run(const sigset_t* mask) {
     }
   }
 
-  return 0;
+  __builtin_unreachable();
 }
 
 } // namespace Oomd

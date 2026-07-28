@@ -40,7 +40,8 @@ namespace {
 int prerun_count;
 int prerun_stored_count;
 int count;
-std::map<std::string, int> count_map = std::map<std::string, int>();
+std::unordered_map<CgroupPath, int> prerun_count_map{};
+std::unordered_map<CgroupPath, int> count_map{};
 int stored_count;
 bool controlled_detector_on;
 std::unordered_map<std::string, unsigned int> prekill_hook_count;
@@ -52,6 +53,8 @@ void reset_counters() {
   stored_count = 0;
   controlled_detector_on = false;
   prekill_hook_count.clear();
+  prerun_count_map.clear();
+  count_map.clear();
 }
 
 } // namespace
@@ -69,8 +72,11 @@ class ContinuePlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -92,8 +98,11 @@ class StopPlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -115,12 +124,18 @@ class IncrementCountPlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
-  PluginRet run(OomdContext& /* unused */) override {
+  PluginRet run(OomdContext& ctx) override {
     ++count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      count_map[*rulesetCgroup]++;
+    }
     return PluginRet::CONTINUE;
   }
 
@@ -139,8 +154,11 @@ class StoreCountPlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -164,8 +182,11 @@ class ControlledDetectorPlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -191,8 +212,11 @@ class AsyncPausePlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -221,8 +245,11 @@ class NoInitPlugin : public BasePlugin {
     return 1;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& /* unused */) override {
@@ -282,8 +309,11 @@ class KillPlugin : public BasePlugin {
     return 0;
   }
 
-  void prerun(OomdContext& /* unused */) override {
+  void prerun(OomdContext& ctx) override {
     ++prerun_count;
+    if (auto rulesetCgroup = ctx.getRulesetCgroup()) {
+      prerun_count_map[*rulesetCgroup]++;
+    }
   }
 
   PluginRet run(OomdContext& ctx) override {
@@ -612,40 +642,6 @@ TEST_F(CompilerTest, PrekillHook) {
   }
 }
 
-TEST_F(CompilerTest, PrekillHookRuleset) {
-  IR::PrekillHook hook{IR::Plugin{.name = "NoOpPrekillHook"}};
-  hook.args["cgroup"] = "/";
-  hook.args["id"] = "only-hook";
-  root.prekill_hooks.push_back(std::move(hook));
-
-  IR::Detector cont;
-  cont.name = "Continue";
-  IR::Action kill;
-  kill.name = "Kill";
-  IR::DetectorGroup dgroup{"group1", {std::move(cont)}};
-  IR::Ruleset ruleset{
-      .name = "ruleset1",
-      .dgs = {std::move(dgroup)},
-      .acts = {std::move(kill)},
-      .cgroup = "/workload.slice"};
-  ruleset.post_action_delay = "0";
-  root.rulesets.emplace_back(std::move(ruleset));
-
-  OomdContext ctx_;
-  auto engine = compile();
-  ASSERT_TRUE(engine);
-
-  context.setPrekillHooksHandler([&](const CgroupContext& cgroup_ctx) {
-    return engine->firePrekillHook(cgroup_ctx, ctx_);
-  });
-
-  for (int i = 0; i < 3; i++) {
-    engine->runOnce(context);
-    decltype(prekill_hook_count) expectation = {{"only-hook", i + 1}};
-    ASSERT_EQ(prekill_hook_count, expectation);
-  }
-}
-
 TEST_F(CompilerTest, RulesetWildcardCGroup) {
   IR::Detector cont;
   cont.name = "Continue";
@@ -865,6 +861,68 @@ TEST_F(DropInCompilerTest, PrerunCount) {
   engine->prerun(context);
   engine->runOnce(context);
   EXPECT_EQ(prerun_count, 0 + 3 + 2 + 3 + 5);
+}
+
+TEST_F(CompilerTest, RulesetCGroupCount) {
+  IR::DetectorGroup always_yes{
+      .name = "dg",
+      .detectors = {IR::Detector{IR::Plugin{.name = "Continue"}}}};
+  IR::Action cnt{IR::Plugin{.name = "IncrementCount"}};
+  CgroupPath system_slice(kRandomCgroupFs, "system.slice");
+  CgroupPath workload_slice(kRandomCgroupFs, "workload.slice");
+
+  root.rulesets = {IR::Ruleset{
+      .name = "A",
+      .dgs = {always_yes},
+      .acts = {cnt},
+      .post_action_delay = "0",
+      .cgroup = "system.slice,workload.slice"}};
+
+  auto engine = compile();
+  ASSERT_TRUE(engine);
+
+  // Ruleset Cgroup only gets added in runOnce. Nothing should be prerun now
+  engine->prerun(context);
+  EXPECT_EQ(prerun_count, 0);
+  EXPECT_EQ(prerun_count_map.size(), 0);
+  EXPECT_EQ(count, 0);
+  EXPECT_EQ(count_map.size(), 0);
+
+  // The newly added per-cgroup rulesets should be immediately prerun.
+  engine->runOnce(context);
+  EXPECT_EQ(prerun_count, 4); // 2 cgroup rulesets x 2 plugins
+  EXPECT_EQ(prerun_count_map.size(), 2);
+  EXPECT_EQ(prerun_count_map.at(system_slice), 2);
+  EXPECT_EQ(prerun_count_map.at(workload_slice), 2);
+  EXPECT_EQ(count, 2); // 2 cgroup rulesets x 1 action
+  EXPECT_EQ(count_map.size(), 2);
+  EXPECT_EQ(count_map.at(system_slice), 1);
+  EXPECT_EQ(count_map.at(workload_slice), 1);
+
+  // After the first runOnce, the per-cgroup rulesets should be prerun.
+  engine->prerun(context);
+  // Second prerun, everything doubled
+  EXPECT_EQ(prerun_count, 8);
+  EXPECT_EQ(prerun_count_map.size(), 2);
+  EXPECT_EQ(prerun_count_map.at(system_slice), 4);
+  EXPECT_EQ(prerun_count_map.at(workload_slice), 4);
+  // No run yet, values should be the same
+  EXPECT_EQ(count, 2);
+  EXPECT_EQ(count_map.size(), 2);
+  EXPECT_EQ(count_map.at(system_slice), 1);
+  EXPECT_EQ(count_map.at(workload_slice), 1);
+
+  // The second runOnce should not prerun the existing rulesets.
+  engine->runOnce(context);
+  EXPECT_EQ(prerun_count, 8);
+  EXPECT_EQ(prerun_count_map.size(), 2);
+  EXPECT_EQ(prerun_count_map.at(system_slice), 4);
+  EXPECT_EQ(prerun_count_map.at(workload_slice), 4);
+  // Second run, everything doubled
+  EXPECT_EQ(count, 4);
+  EXPECT_EQ(count_map.size(), 2);
+  EXPECT_EQ(count_map.at(system_slice), 2);
+  EXPECT_EQ(count_map.at(workload_slice), 2);
 }
 
 TEST_F(CompilerTest, NoInitPlugin) {

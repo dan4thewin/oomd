@@ -651,6 +651,7 @@ std::unordered_map<std::string, int64_t> Fs::getMemstatLikeFromLines(
   char name[256] = {0};
   uint64_t val;
   std::unordered_map<std::string, int64_t> map;
+  map.reserve(lines.size());
 
   for (const auto& line : lines) {
     int ret = sscanf(line.c_str(), "%255s %" SCNu64 "\n", name, &val);
